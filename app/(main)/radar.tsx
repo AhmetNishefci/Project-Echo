@@ -58,6 +58,7 @@ export default function RadarScreen() {
   const { currentToken, isRotating } = useEchoStore();
   const incomingWaveCount = useEchoStore((s) => s.incomingWaveCount);
   const [isStarting, setIsStarting] = useState(false);
+  const startingRef = useRef(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -109,6 +110,8 @@ export default function RadarScreen() {
   }, []);
 
   const handleStartDiscovery = useCallback(async () => {
+    if (startingRef.current) return;
+    startingRef.current = true;
     setIsStarting(true);
     try {
       const result = await echoBleManager.requestPermissions();
@@ -143,6 +146,7 @@ export default function RadarScreen() {
       logger.error("Failed to start discovery", err);
       Alert.alert("Error", "Failed to start Bluetooth discovery.");
     } finally {
+      startingRef.current = false;
       setIsStarting(false);
     }
   }, []);

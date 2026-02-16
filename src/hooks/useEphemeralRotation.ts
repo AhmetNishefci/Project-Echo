@@ -24,15 +24,23 @@ export function useEphemeralRotation() {
     // still in-flight, the callback must become a no-op to prevent
     // orphaned timer chains that double server load on every toggle.
     let aborted = false;
+    let consecutiveFailures = 0;
 
     const scheduleRotation = () => {
       if (aborted) return;
 
-      const { tokenExpiresAt } = useEchoStore.getState();
-      // Default to rotating in the standard interval if no expiry is set
-      const delay = tokenExpiresAt
-        ? Math.max(1_000, tokenExpiresAt - Date.now() - EPHEMERAL_REFRESH_BUFFER_MS)
-        : EPHEMERAL_ROTATION_MS - EPHEMERAL_REFRESH_BUFFER_MS;
+      let delay: number;
+      if (consecutiveFailures > 0) {
+        // Exponential backoff on failure: 30s, 60s, 120s, capped at 5 min
+        delay = Math.min(30_000 * Math.pow(2, consecutiveFailures - 1), 5 * 60_000);
+        logger.echo(`Token rotation backoff: retry in ${Math.round(delay / 1000)}s (failure #${consecutiveFailures})`);
+      } else {
+        const { tokenExpiresAt } = useEchoStore.getState();
+        // Default to rotating in the standard interval if no expiry is set
+        delay = tokenExpiresAt
+          ? Math.max(1_000, tokenExpiresAt - Date.now() - EPHEMERAL_REFRESH_BUFFER_MS)
+          : EPHEMERAL_ROTATION_MS - EPHEMERAL_REFRESH_BUFFER_MS;
+      }
 
       timerRef.current = setTimeout(async () => {
         if (aborted) return;
@@ -47,7 +55,10 @@ export function useEphemeralRotation() {
         if (aborted) return;
 
         if (result) {
+          consecutiveFailures = 0;
           await echoBleManager.rotateToken(result.token);
+        } else {
+          consecutiveFailures++;
         }
 
         // Schedule the next rotation based on the NEW token's expiry

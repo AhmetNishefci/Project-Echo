@@ -29,7 +29,7 @@ import { BleStatusBar } from "@/components/StatusBar";
 import type { NearbyPeer, DistanceZone } from "@/types";
 import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
 import { logger } from "@/utils/logger";
-import { WAVE_UNDO_WINDOW_MS } from "@/services/ble/constants";
+import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
@@ -56,7 +56,7 @@ export default function RadarScreen() {
     error,
   } = useBleStore();
   const { currentToken, isRotating } = useEchoStore();
-  const incomingWaveCount = useEchoStore((s) => s.incomingWaveCount);
+  const incomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
   const [isStarting, setIsStarting] = useState(false);
   const startingRef = useRef(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -174,7 +174,8 @@ export default function RadarScreen() {
       Alert.alert("Wave Failed", "Could not send wave. Try again.");
     } else if (result === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
-      Alert.alert("Already Matched", "You've already matched with this person!");
+      store.addMatchedToken(peer.ephemeralToken);
+      showToast("You've already matched with this person! 🤝", 3000);
     } else if (result === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
@@ -183,7 +184,7 @@ export default function RadarScreen() {
       notifySuccess();
       logger.echo("Match from wave!");
     } else if (result === "pending") {
-      showToast("Wave sent! They'll see it for 15 min. You can undo for 60s.");
+      showToast("Wave sent! You can undo anytime before it expires.");
     }
   }, [showToast]);
 
@@ -194,7 +195,7 @@ export default function RadarScreen() {
       showToast("Wave undone", 2000);
     } else {
       notifyError();
-      Alert.alert("Undo Failed", "Could not undo the wave. It may have already been seen.");
+      Alert.alert("Undo Failed", "Could not undo the wave. It may have already been matched or expired.");
     }
   }, [showToast]);
 
@@ -266,7 +267,7 @@ export default function RadarScreen() {
       />
 
       {/* Incoming wave banner */}
-      {incomingWaveCount > 0 && (
+      {incomingWaveTokens.length > 0 && (
         <Animated.View
           entering={FadeIn.duration(300)}
           exiting={FadeOut.duration(200)}
@@ -275,9 +276,9 @@ export default function RadarScreen() {
           <Text className="text-2xl mr-3">👋</Text>
           <View className="flex-1">
             <Text className="text-white font-semibold text-sm">
-              {incomingWaveCount === 1
+              {incomingWaveTokens.length === 1
                 ? "Someone nearby waved at you!"
-                : `${incomingWaveCount} people nearby waved at you!`}
+                : `${incomingWaveTokens.length} people nearby waved at you!`}
             </Text>
             <Text className="text-echo-muted text-xs mt-0.5">
               Wave back to match and see their Instagram
@@ -474,6 +475,12 @@ function PeerRow({
   const wavePending = useEchoStore(
     (s) => s.pendingWaves.get(peer.ephemeralToken) ?? null,
   );
+  const isAlreadyMatched = useEchoStore(
+    (s) => s.matchedTokens.has(peer.ephemeralToken),
+  );
+  const hasWavedAtMe = useEchoStore(
+    (s) => s.incomingWaveTokens.includes(peer.ephemeralToken),
+  );
   const signal = getSignalLabel(peer.rssi);
   const avatar = useMemo(
     () => getAvatarForToken(peer.ephemeralToken),
@@ -481,28 +488,25 @@ function PeerRow({
   );
   const freshness = getTimeSince(peer.lastSeen);
 
-  // Undo countdown
-  const [canUndo, setCanUndo] = useState(false);
+  // Auto-expire wave after 15 minutes — revert button to Wave 👋
+  const WAVE_EXPIRY_MS = WAVE_EXPIRY_MINUTES * 60 * 1_000;
 
   useEffect(() => {
-    if (!wavePending) {
-      setCanUndo(false);
-      return;
-    }
+    if (!wavePending) return;
 
     const elapsed = Date.now() - wavePending.sentAt;
-    if (elapsed >= WAVE_UNDO_WINDOW_MS) {
-      setCanUndo(false);
+    if (elapsed >= WAVE_EXPIRY_MS) {
+      // Already expired — clean up immediately
+      useEchoStore.getState().removePendingWave(peer.ephemeralToken);
       return;
     }
 
-    setCanUndo(true);
     const timer = setTimeout(() => {
-      setCanUndo(false);
-    }, WAVE_UNDO_WINDOW_MS - elapsed);
+      useEchoStore.getState().removePendingWave(peer.ephemeralToken);
+    }, WAVE_EXPIRY_MS - elapsed);
 
     return () => clearTimeout(timer);
-  }, [wavePending]);
+  }, [wavePending, peer.ephemeralToken, WAVE_EXPIRY_MS]);
 
   return (
     <View className="py-3 px-4 mb-2 rounded-xl flex-row items-center bg-echo-surface">
@@ -523,27 +527,35 @@ function PeerRow({
         </View>
       </View>
 
-      {/* Wave / Undo / Waved */}
-      {wavePending ? (
-        canUndo ? (
-          <TouchableOpacity
-            onPress={() => onUndo(peer.ephemeralToken)}
-            className="bg-orange-500/20 rounded-lg px-3 py-1.5"
-          >
-            <Text className="text-orange-400 font-semibold text-sm">Undo</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text className="text-echo-muted font-semibold text-sm">
-            Waved ✓
+      {/* Wave / Undo / Matched */}
+      {isAlreadyMatched ? (
+        <View className="bg-echo-match/20 rounded-lg px-3 py-1.5">
+          <Text className="text-echo-match font-semibold text-sm">
+            Matched 🤝
           </Text>
-        )
+        </View>
+      ) : wavePending ? (
+        <TouchableOpacity
+          onPress={() => onUndo(peer.ephemeralToken)}
+          className="bg-orange-500/20 rounded-lg px-3 py-1.5"
+        >
+          <Text className="text-orange-400 font-semibold text-sm">Undo</Text>
+        </TouchableOpacity>
       ) : (
         <TouchableOpacity
           onPress={() => onWave(peer)}
-          className="bg-echo-wave/20 rounded-lg px-3 py-1.5"
+          className={`rounded-lg px-3 py-1.5 ${
+            hasWavedAtMe
+              ? "bg-green-500/20 border border-green-500/40"
+              : "bg-echo-wave/20"
+          }`}
         >
-          <Text className="text-echo-wave font-semibold text-sm">
-            Wave 👋
+          <Text
+            className={`font-semibold text-sm ${
+              hasWavedAtMe ? "text-green-400" : "text-echo-wave"
+            }`}
+          >
+            {hasWavedAtMe ? "Wave Back 👋" : "Wave 👋"}
           </Text>
         </TouchableOpacity>
       )}

@@ -47,9 +47,11 @@ export function useEphemeralRotation() {
 
         logger.echo("Rotating ephemeral token...");
 
-        // Clear stale pending waves and incoming wave count — the old tokens are no longer valid
+        // Clear stale pending waves, incoming wave count, and matched tokens
+        // — the old tokens are no longer valid
         useEchoStore.getState().clearAllPendingWaves();
-        useEchoStore.getState().resetIncomingWaves();
+        useEchoStore.getState().resetIncomingWaveTokens();
+        useEchoStore.getState().clearMatchedTokens();
 
         const result = await fetchNewToken();
         if (aborted) return;

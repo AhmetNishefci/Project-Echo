@@ -60,6 +60,17 @@ export async function sendWave(
     }
 
     if (result.status === "already_matched") {
+      // Re-populate local match history if match details are available
+      // (covers the case where user cleared their match history)
+      if (result.match_id && result.matched_user_id) {
+        useEchoStore.getState().addMatch({
+          matchId: result.match_id,
+          matchedUserId: result.matched_user_id,
+          instagramHandle: result.instagram_handle ?? undefined,
+          createdAt: new Date().toISOString(),
+          seen: true, // Don't trigger match screen again
+        });
+      }
       return "already_matched";
     }
 
@@ -108,6 +119,37 @@ export async function undoWave(
     return true;
   } catch (error) {
     logger.error("Undo wave error", error);
+    return false;
+  }
+}
+
+/**
+ * Remove a match server-side. Deletes the match row for both users
+ * and broadcasts a match_removed event to the other user.
+ * Returns true if successfully removed.
+ */
+export async function removeMatchFromServer(matchId: string): Promise<boolean> {
+  try {
+    const session = await getFreshSession();
+    if (!session) return false;
+
+    const { error } = await supabase.functions.invoke("remove-match", {
+      body: { match_id: matchId },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (error) {
+      logger.error("Remove match failed", error);
+      return false;
+    }
+
+    useEchoStore.getState().removeMatch(matchId);
+    logger.echo("Match removed", { matchId });
+    return true;
+  } catch (error) {
+    logger.error("Remove match error", error);
     return false;
   }
 }

@@ -41,11 +41,24 @@ export function subscribeToMatches(userId: string): void {
     })
     .on("broadcast", { event: "wave" }, (payload) => {
       logger.echo("Incoming wave event!", payload);
-      useEchoStore.getState().incrementIncomingWaves();
+      const data = payload.payload as { waver_token?: string };
+      if (data.waver_token) {
+        useEchoStore.getState().addIncomingWaveToken(data.waver_token);
+      }
     })
     .on("broadcast", { event: "wave_undo" }, (payload) => {
       logger.echo("Wave undo event received", payload);
-      useEchoStore.getState().decrementIncomingWaves();
+      const data = payload.payload as { waver_token?: string };
+      if (data.waver_token) {
+        useEchoStore.getState().removeIncomingWaveToken(data.waver_token);
+      }
+    })
+    .on("broadcast", { event: "match_removed" }, (payload) => {
+      logger.echo("Match removed event received", payload);
+      const data = payload.payload as { match_id?: string };
+      if (data.match_id) {
+        useEchoStore.getState().removeMatch(data.match_id);
+      }
     })
     .subscribe((status) => {
       logger.echo("Realtime subscription status", { status });

@@ -39,7 +39,7 @@ export default function MatchScreen() {
 
   useEffect(() => {
     if (!latestUnseenMatch) {
-      router.back();
+      router.navigate("/(main)/radar");
     }
   }, [latestUnseenMatch, router]);
 
@@ -70,7 +70,7 @@ export default function MatchScreen() {
     if (latestUnseenMatch) {
       markMatchSeen(latestUnseenMatch.matchId);
     }
-    router.back();
+    router.navigate("/(main)/radar");
   };
 
   return (

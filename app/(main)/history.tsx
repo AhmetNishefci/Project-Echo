@@ -1,7 +1,8 @@
-import { View, Text, SectionList, TouchableOpacity, Linking, Share } from "react-native";
+import { View, Text, SectionList, TouchableOpacity, Linking, Share, Alert, ActionSheetIOS, Platform } from "react-native";
 import { useRouter } from "expo-router";
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo, useEffect, useRef, useCallback } from "react";
 import { useEchoStore } from "@/stores/echoStore";
+import { removeMatchFromServer } from "@/services/echo/waves";
 import type { Match } from "@/types";
 
 /** Group matches by date (Today, Yesterday, Earlier) */
@@ -121,7 +122,6 @@ export default function HistoryScreen() {
 }
 
 function MatchRow({ match }: { match: Match }) {
-  const shortId = match.matchedUserId.substring(0, 8).toUpperCase();
   const time = new Date(match.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -129,17 +129,80 @@ function MatchRow({ match }: { match: Match }) {
 
   const handle = match.instagramHandle;
 
-  const openInstagram = () => {
+  const openInstagram = useCallback(() => {
     if (!handle) return;
     Linking.openURL(`instagram://user?username=${handle}`).catch(() => {
       Linking.openURL(`https://instagram.com/${handle}`);
     });
-  };
+  }, [handle]);
+
+  const handleRemove = useCallback(() => {
+    Alert.alert(
+      "Remove Match",
+      handle
+        ? `Remove @${handle}? This removes the match for both of you.`
+        : "Remove this match? This removes it for both of you.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            const success = await removeMatchFromServer(match.matchId);
+            if (!success) {
+              Alert.alert("Error", "Could not remove the match. Try again.");
+            }
+          },
+        },
+      ],
+    );
+  }, [match.matchId, handle]);
+
+  const handleReport = useCallback(() => {
+    Linking.openURL(
+      `mailto:support@echo-app.com?subject=Report%20User&body=Match%20ID:%20${match.matchId}%0APlease%20describe%20the%20issue:%0A`,
+    );
+  }, [match.matchId]);
+
+  const showActions = useCallback(() => {
+    if (Platform.OS === "ios") {
+      const options = handle
+        ? ["Open Instagram", "Remove Match", "Report User", "Cancel"]
+        : ["Remove Match", "Report User", "Cancel"];
+      const cancelIndex = options.length - 1;
+      const destructiveIndex = handle ? 1 : 0;
+
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
+        (index) => {
+          if (handle) {
+            if (index === 0) openInstagram();
+            else if (index === 1) handleRemove();
+            else if (index === 2) handleReport();
+          } else {
+            if (index === 0) handleRemove();
+            else if (index === 1) handleReport();
+          }
+        },
+      );
+    } else {
+      // Android fallback — use Alert with buttons
+      Alert.alert("Match Options", undefined, [
+        ...(handle
+          ? [{ text: "Open Instagram", onPress: openInstagram }]
+          : []),
+        { text: "Remove Match", style: "destructive" as const, onPress: () => handleRemove() },
+        { text: "Report User", onPress: handleReport },
+        { text: "Cancel", style: "cancel" as const },
+      ]);
+    }
+  }, [handle, openInstagram, handleRemove, handleReport]);
 
   return (
     <TouchableOpacity
-      onPress={handle ? openInstagram : undefined}
-      activeOpacity={handle ? 0.7 : 1}
+      onPress={handle ? openInstagram : showActions}
+      onLongPress={showActions}
+      activeOpacity={0.7}
       className="bg-echo-surface rounded-2xl p-4 mb-3 flex-row items-center"
     >
       {/* Avatar */}
@@ -149,12 +212,25 @@ function MatchRow({ match }: { match: Match }) {
 
       {/* Info */}
       <View className="flex-1">
-        <Text className="text-white font-semibold text-base">
-          {handle ? `@${handle}` : `Echo #${shortId}`}
-        </Text>
-        <Text className="text-echo-muted text-xs mt-1">
-          Matched at {time}
-        </Text>
+        {handle ? (
+          <>
+            <Text className="text-white font-semibold text-base">
+              @{handle}
+            </Text>
+            <Text className="text-echo-muted text-xs mt-1">
+              Matched at {time}
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text className="text-white font-semibold text-base">
+              Someone nearby
+            </Text>
+            <Text className="text-echo-muted text-xs mt-1">
+              Matched at {time} · No Instagram linked
+            </Text>
+          </>
+        )}
       </View>
 
       {/* Instagram indicator or unseen dot */}

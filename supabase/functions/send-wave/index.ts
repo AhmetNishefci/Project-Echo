@@ -71,14 +71,14 @@ serve(async (req: Request) => {
         .maybeSingle();
 
       // Delete the wave record (only if it hasn't been consumed/matched
-      // and was created within the last 60 seconds)
+      // and was created within the wave lifetime — 15 minutes)
       const { data: deleted, error: delError } = await adminClient
         .from("waves")
         .delete()
         .eq("waver_user_id", user.id)
         .eq("target_ephemeral_token", target_ephemeral_token)
         .eq("is_consumed", false)
-        .gte("created_at", new Date(Date.now() - 60_000).toISOString())
+        .gte("created_at", new Date(Date.now() - 15 * 60_000).toISOString())
         .select();
 
       if (delError) {
@@ -96,14 +96,29 @@ serve(async (req: Request) => {
         });
       }
 
-      // Broadcast wave_undo to the target user so their counter decrements
+      // Broadcast wave_undo to the target user so they remove the waver token
       if (tokenRow?.user_id) {
+        // Look up the waver's active ephemeral token
+        let waverToken: string | null = null;
+        try {
+          const { data: waverRow } = await adminClient
+            .from("ephemeral_ids")
+            .select("token")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .limit(1)
+            .maybeSingle();
+          waverToken = waverRow?.token ?? null;
+        } catch (err) {
+          console.error("Failed to look up waver token for undo:", err);
+        }
+
         try {
           const ch = adminClient.channel(`user:${tokenRow.user_id}`);
           await ch.send({
             type: "broadcast",
             event: "wave_undo",
-            payload: {},
+            payload: { waver_token: waverToken },
           });
           adminClient.removeChannel(ch);
         } catch (err) {
@@ -159,12 +174,28 @@ serve(async (req: Request) => {
       }
 
       if (targetUserId) {
+        // Look up the waver's active ephemeral token so the target
+        // knows which radar peer waved at them
+        let waverToken: string | null = null;
+        try {
+          const { data: waverRow } = await adminClient
+            .from("ephemeral_ids")
+            .select("token")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .limit(1)
+            .maybeSingle();
+          waverToken = waverRow?.token ?? null;
+        } catch (err) {
+          console.error("Failed to look up waver token:", err);
+        }
+
         try {
           const ch = adminClient.channel(`user:${targetUserId}`);
           await ch.send({
             type: "broadcast",
             event: "wave",
-            payload: { t: Date.now() },
+            payload: { t: Date.now(), waver_token: waverToken },
           });
           adminClient.removeChannel(ch);
         } catch (err) {
@@ -227,9 +258,21 @@ serve(async (req: Request) => {
       ]);
     }
 
+    // ─── ALREADY MATCHED → return instagram handle so client can re-populate ──
+    if (result.status === "already_matched" && result.matched_user_id) {
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("instagram_handle")
+        .eq("id", result.matched_user_id)
+        .single();
+
+      matchedInstagramHandle = profile?.instagram_handle ?? null;
+    }
+
     return new Response(JSON.stringify({
       ...result,
-      ...(result.status === "match" ? { instagram_handle: matchedInstagramHandle } : {}),
+      ...((result.status === "match" || result.status === "already_matched")
+        ? { instagram_handle: matchedInstagramHandle } : {}),
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

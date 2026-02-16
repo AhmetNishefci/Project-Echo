@@ -11,8 +11,8 @@ interface EchoState {
   pendingWaves: Map<string, WavePending>;
   isWaving: boolean;
 
-  /** Number of anonymous incoming waves from nearby people */
-  incomingWaveCount: number;
+  /** Ephemeral tokens of people who waved at us (anonymous, for "Wave Back" UI) */
+  incomingWaveTokens: string[];
 
   matches: Match[];
   latestUnseenMatch: Match | null;
@@ -27,11 +27,17 @@ interface EchoState {
   hasPendingWaveTo: (targetToken: string) => boolean;
   setWaving: (waving: boolean) => void;
 
-  incrementIncomingWaves: () => void;
-  decrementIncomingWaves: () => void;
-  resetIncomingWaves: () => void;
+  addIncomingWaveToken: (token: string) => void;
+  removeIncomingWaveToken: (token: string) => void;
+  resetIncomingWaveTokens: () => void;
+
+  /** Ephemeral tokens that returned already_matched this session */
+  matchedTokens: Set<string>;
+  addMatchedToken: (token: string) => void;
+  clearMatchedTokens: () => void;
 
   addMatch: (match: Match) => void;
+  removeMatch: (matchId: string) => void;
   markMatchSeen: (matchId: string) => void;
   clearMatches: () => void;
 
@@ -48,10 +54,12 @@ export const useEchoStore = create<EchoState>()(
       pendingWaves: new Map(),
       isWaving: false,
 
-      incomingWaveCount: 0,
+      incomingWaveTokens: [],
 
       matches: [],
       latestUnseenMatch: null,
+
+      matchedTokens: new Set<string>(),
 
       setToken: (token, expiresAt) =>
         set({ currentToken: token, tokenExpiresAt: expiresAt }),
@@ -80,11 +88,26 @@ export const useEchoStore = create<EchoState>()(
 
       setWaving: (isWaving) => set({ isWaving }),
 
-      incrementIncomingWaves: () =>
-        set((state) => ({ incomingWaveCount: state.incomingWaveCount + 1 })),
-      decrementIncomingWaves: () =>
-        set((state) => ({ incomingWaveCount: Math.max(0, state.incomingWaveCount - 1) })),
-      resetIncomingWaves: () => set({ incomingWaveCount: 0 }),
+      addIncomingWaveToken: (token) =>
+        set((state) => ({
+          incomingWaveTokens: state.incomingWaveTokens.includes(token)
+            ? state.incomingWaveTokens
+            : [...state.incomingWaveTokens, token],
+        })),
+      removeIncomingWaveToken: (token) =>
+        set((state) => ({
+          incomingWaveTokens: state.incomingWaveTokens.filter((t) => t !== token),
+        })),
+      resetIncomingWaveTokens: () => set({ incomingWaveTokens: [] }),
+
+      addMatchedToken: (token) =>
+        set((state) => {
+          const next = new Set(state.matchedTokens);
+          next.add(token);
+          return { matchedTokens: next };
+        }),
+
+      clearMatchedTokens: () => set({ matchedTokens: new Set() }),
 
       addMatch: (match) =>
         set((state) => {
@@ -97,6 +120,15 @@ export const useEchoStore = create<EchoState>()(
             latestUnseenMatch: match,
           };
         }),
+
+      removeMatch: (matchId) =>
+        set((state) => ({
+          matches: state.matches.filter((m) => m.matchId !== matchId),
+          latestUnseenMatch:
+            state.latestUnseenMatch?.matchId === matchId
+              ? null
+              : state.latestUnseenMatch,
+        })),
 
       markMatchSeen: (matchId) =>
         set((state) => ({
@@ -119,9 +151,10 @@ export const useEchoStore = create<EchoState>()(
           isRotating: false,
           pendingWaves: new Map(),
           isWaving: false,
-          incomingWaveCount: 0,
+          incomingWaveTokens: [],
           matches: [],
           latestUnseenMatch: null,
+          matchedTokens: new Set(),
         }),
     }),
     {

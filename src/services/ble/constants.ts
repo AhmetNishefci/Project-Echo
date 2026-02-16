@@ -27,6 +27,3 @@ export const EPHEMERAL_REFRESH_BUFFER_MS = 3 * 60 * 1000; // Refresh 3 minutes e
 
 // Wave timing
 export const WAVE_EXPIRY_MINUTES = 15;
-
-// Wave undo window (client and server must agree)
-export const WAVE_UNDO_WINDOW_MS = 60_000; // 60 seconds

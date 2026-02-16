@@ -233,7 +233,7 @@ export default function SettingsScreen() {
           onPress={() => {
             Alert.alert(
               "Report a User",
-              "To report someone, go to your match history, tap the match, and describe the issue. We'll review it within 24 hours.",
+              "To report someone, long-press their match in your match history and choose \"Report User\". You can also email us directly.",
               [
                 { text: "OK" },
                 {
@@ -251,7 +251,7 @@ export default function SettingsScreen() {
           onPress={() => {
             Alert.alert(
               "Block a User",
-              "Blocking prevents a user from matching with you in the future. To block someone, tap their match in your history.",
+              "To remove someone, long-press their match in your match history and choose \"Remove Match\". This removes them from your history. Full blocking will be available in a future update.",
               [{ text: "OK" }],
             );
           }}

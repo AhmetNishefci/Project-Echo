@@ -384,7 +384,9 @@ export default function RadarScreen() {
       {/* Toast overlay */}
       {toast && (
         <Animated.View
+          key={toast}
           entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(200)}
           className="absolute bottom-28 left-6 right-6 bg-echo-surface border border-echo-muted rounded-2xl py-3 px-4"
         >
           <Text className="text-white text-sm text-center">{toast}</Text>

@@ -1,4 +1,4 @@
-import * as BlePeripheral from "../../../modules/expo-ble-peripheral";
+import * as BlePeripheral from "expo-ble-peripheral";
 import { logger } from "@/utils/logger";
 
 /**

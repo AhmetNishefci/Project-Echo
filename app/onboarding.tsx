@@ -23,7 +23,7 @@ export default function OnboardingScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const cleanHandle = handle.trim().toLowerCase().replace(/^@/, "");
-  const isValid = /^[a-z0-9._]{1,30}$/.test(cleanHandle) && cleanHandle.length >= 1;
+  const isValid = /^(?=.*[a-z0-9])[a-z0-9._]{1,30}$/.test(cleanHandle) && cleanHandle.length >= 1;
 
   const handleSubmit = async () => {
     if (!isValid) {

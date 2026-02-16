@@ -37,18 +37,21 @@ export function useBleLifecycle() {
           // Check if ephemeral token expired while backgrounded
           const { tokenExpiresAt } = useEchoStore.getState();
           if (!tokenExpiresAt || tokenExpiresAt < Date.now()) {
-            logger.echo("Token expired during background — fetching new one");
+            logger.echo("Token expired during background — fetching new one before restarting scan");
             fetchNewToken().then((result) => {
               if (result) {
                 echoBleManager.rotateToken(result.token).catch((e) =>
                   logger.error("Failed to rotate token on foreground", e),
                 );
               }
+              // Restart scan cycle only AFTER token is refreshed
+              echoBleManager.restartScanCycle();
+              logger.ble("App foregrounded — scan cycle restarted after token refresh");
             });
+          } else {
+            echoBleManager.restartScanCycle();
+            logger.ble("App foregrounded — scan cycle restarted at full speed");
           }
-
-          echoBleManager.restartScanCycle();
-          logger.ble("App foregrounded — scan cycle restarted at full speed");
         }
       }
     };

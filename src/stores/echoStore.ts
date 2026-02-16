@@ -33,6 +33,7 @@ interface EchoState {
 
   addMatch: (match: Match) => void;
   markMatchSeen: (matchId: string) => void;
+  clearMatches: () => void;
 
   reset: () => void;
 }
@@ -107,6 +108,9 @@ export const useEchoStore = create<EchoState>()(
               ? null
               : state.latestUnseenMatch,
         })),
+
+      clearMatches: () =>
+        set({ matches: [], latestUnseenMatch: null }),
 
       reset: () =>
         set({

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator, Modal, Animated, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
@@ -35,7 +35,7 @@ export default function SettingsScreen() {
 
   const handleSaveHandle = async () => {
     const cleaned = handleInput.trim().toLowerCase().replace(/^@/, "");
-    if (!cleaned || !/^[a-z0-9._]{1,30}$/.test(cleaned)) {
+    if (!cleaned || !/^(?=.*[a-z0-9])[a-z0-9._]{1,30}$/.test(cleaned)) {
       Alert.alert("Invalid Username", "Enter a valid Instagram username.");
       return;
     }
@@ -63,7 +63,7 @@ export default function SettingsScreen() {
         {
           text: "Clear",
           style: "destructive",
-          onPress: () => useEchoStore.getState().reset(),
+          onPress: () => useEchoStore.getState().clearMatches(),
         },
       ],
     );
@@ -349,6 +349,8 @@ function InfoRow({
 /** Animated toast that auto-dismisses after 2s */
 function Toast({ message, onDone }: { message: string | null; onDone: () => void }) {
   const [opacity] = useState(() => new Animated.Value(0));
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     if (message) {
@@ -356,9 +358,9 @@ function Toast({ message, onDone }: { message: string | null; onDone: () => void
         Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
         Animated.delay(1800),
         Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start(() => onDone());
+      ]).start(() => onDoneRef.current());
     }
-  }, [message]);
+  }, [message, opacity]);
 
   if (!message) return null;
 

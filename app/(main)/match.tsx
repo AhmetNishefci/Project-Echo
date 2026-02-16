@@ -70,7 +70,7 @@ export default function MatchScreen() {
     if (latestUnseenMatch) {
       markMatchSeen(latestUnseenMatch.matchId);
     }
-    router.replace("/(main)/radar");
+    router.back();
   };
 
   return (

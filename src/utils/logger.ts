@@ -17,6 +17,8 @@ export const logger = {
     }
   },
   error: (message: string, error?: unknown) => {
-    console.error(`[ERROR] ${message}`, error !== undefined ? error : "");
+    if (isDev) {
+      console.error(`[ERROR] ${message}`, error !== undefined ? error : "");
+    }
   },
 };

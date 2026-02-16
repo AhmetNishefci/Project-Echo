@@ -138,8 +138,8 @@ class EchoBleManager {
   /**
    * Clean up resources.
    */
-  destroy(): void {
-    this.stop();
+  async destroy(): Promise<void> {
+    await this.stop();
     this.stateSubscription?.remove();
     this.bleManager?.destroy();
     this.bleManager = null;

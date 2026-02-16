@@ -7,6 +7,12 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Module-level singleton to reuse across warm invocations
+const adminClient = createClient(
+  Deno.env.get("SUPABASE_URL") ?? "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+);
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -42,7 +48,7 @@ serve(async (req: Request) => {
     if (
       !target_ephemeral_token ||
       typeof target_ephemeral_token !== "string" ||
-      target_ephemeral_token.length !== 16
+      !/^[0-9a-f]{16}$/.test(target_ephemeral_token)
     ) {
       return new Response(
         JSON.stringify({ error: "Invalid target_ephemeral_token" }),
@@ -52,12 +58,6 @@ serve(async (req: Request) => {
         },
       );
     }
-
-    // Admin client to bypass RLS
-    const adminClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
 
     // ─── UNDO WAVE ───────────────────────────────────────────────
     if (action === "undo") {
@@ -72,13 +72,14 @@ serve(async (req: Request) => {
 
       // Delete the wave record (only if it hasn't been consumed/matched
       // and was created within the last 60 seconds)
-      const { error: delError } = await adminClient
+      const { data: deleted, error: delError } = await adminClient
         .from("waves")
         .delete()
         .eq("waver_user_id", user.id)
         .eq("target_ephemeral_token", target_ephemeral_token)
         .eq("is_consumed", false)
-        .gte("created_at", new Date(Date.now() - 60_000).toISOString());
+        .gte("created_at", new Date(Date.now() - 60_000).toISOString())
+        .select();
 
       if (delError) {
         console.error("Undo wave delete error:", delError);
@@ -88,14 +89,23 @@ serve(async (req: Request) => {
         });
       }
 
+      if (!deleted || deleted.length === 0) {
+        return new Response(JSON.stringify({ status: "error", reason: "undo_expired" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Broadcast wave_undo to the target user so their counter decrements
       if (tokenRow?.user_id) {
         try {
-          await adminClient.channel(`user:${tokenRow.user_id}`).send({
+          const ch = adminClient.channel(`user:${tokenRow.user_id}`);
+          await ch.send({
             type: "broadcast",
             event: "wave_undo",
             payload: {},
           });
+          adminClient.removeChannel(ch);
         } catch (err) {
           console.error("wave_undo broadcast failed:", err);
         }
@@ -150,11 +160,13 @@ serve(async (req: Request) => {
 
       if (targetUserId) {
         try {
-          await adminClient.channel(`user:${targetUserId}`).send({
+          const ch = adminClient.channel(`user:${targetUserId}`);
+          await ch.send({
             type: "broadcast",
             event: "wave",
             payload: { t: Date.now() },
           });
+          adminClient.removeChannel(ch);
         } catch (err) {
           console.error("Wave broadcast to target failed:", err);
         }
@@ -184,7 +196,8 @@ serve(async (req: Request) => {
 
       // Broadcast match event to the OTHER user only
       // (the waver already gets the match from the HTTP response)
-      await adminClient.channel(`user:${result.matched_user_id}`).send({
+      const matchCh = adminClient.channel(`user:${result.matched_user_id}`);
+      await matchCh.send({
         type: "broadcast",
         event: "match",
         payload: {
@@ -193,6 +206,7 @@ serve(async (req: Request) => {
           instagram_handle: waverHandle,
         },
       });
+      adminClient.removeChannel(matchCh);
 
       // Send push notifications to both users
       await sendMatchPushNotifications(adminClient, [
@@ -312,6 +326,7 @@ async function sendApnsPush(
       type: "match",
       match_id: target.matchId,
       matched_user_id: target.matchedUserId,
+      instagram_handle: target.instagramHandle,
       created_at: target.createdAt,
     };
 

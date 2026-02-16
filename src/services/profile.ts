@@ -50,7 +50,8 @@ export async function saveInstagramHandle(
     }
 
     // Validate: Instagram usernames are 1-30 chars, alphanumeric + dots + underscores
-    const igRegex = /^[a-z0-9._]{1,30}$/;
+    // Must contain at least one alphanumeric character
+    const igRegex = /^(?=.*[a-z0-9])[a-z0-9._]{1,30}$/;
     if (!igRegex.test(handle)) {
       logger.error("saveInstagramHandle: invalid format", { handle });
       return null;

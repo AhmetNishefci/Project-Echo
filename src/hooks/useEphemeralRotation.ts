@@ -20,7 +20,14 @@ export function useEphemeralRotation() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    // Guard: if the effect is cleaned up while an async operation is
+    // still in-flight, the callback must become a no-op to prevent
+    // orphaned timer chains that double server load on every toggle.
+    let aborted = false;
+
     const scheduleRotation = () => {
+      if (aborted) return;
+
       const { tokenExpiresAt } = useEchoStore.getState();
       // Default to rotating in the standard interval if no expiry is set
       const delay = tokenExpiresAt
@@ -28,6 +35,8 @@ export function useEphemeralRotation() {
         : EPHEMERAL_ROTATION_MS - EPHEMERAL_REFRESH_BUFFER_MS;
 
       timerRef.current = setTimeout(async () => {
+        if (aborted) return;
+
         logger.echo("Rotating ephemeral token...");
 
         // Clear stale pending waves and incoming wave count — the old tokens are no longer valid
@@ -35,6 +44,8 @@ export function useEphemeralRotation() {
         useEchoStore.getState().resetIncomingWaves();
 
         const result = await fetchNewToken();
+        if (aborted) return;
+
         if (result) {
           await echoBleManager.rotateToken(result.token);
         }
@@ -50,6 +61,7 @@ export function useEphemeralRotation() {
 
     if (!hasValidToken) {
       fetchNewToken().then((result) => {
+        if (aborted) return;
         if (result) {
           echoBleManager.rotateToken(result.token).catch((error) => {
             logger.error("Failed to update advertiser with initial token", error);
@@ -64,6 +76,7 @@ export function useEphemeralRotation() {
     }
 
     return () => {
+      aborted = true;
       if (timerRef.current) {
         clearTimeout(timerRef.current);
         timerRef.current = null;

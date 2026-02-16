@@ -1,4 +1,4 @@
-import { View, Text, SectionList, TouchableOpacity, Linking } from "react-native";
+import { View, Text, SectionList, TouchableOpacity, Linking, Share } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo, useEffect, useRef } from "react";
 import { useEchoStore } from "@/stores/echoStore";
@@ -42,23 +42,29 @@ export default function HistoryScreen() {
   const sections = useMemo(() => groupByDate(matches), [matches]);
 
   // Mark all unseen matches as seen when this screen mounts
-  const hasMarkedSeen = useRef(false);
+  const didMarkSeen = useRef(false);
   useEffect(() => {
+    if (didMarkSeen.current) return;
     const unseen = matches.filter((m) => !m.seen);
-    if (unseen.length > 0 && !hasMarkedSeen.current) {
-      hasMarkedSeen.current = true;
+    if (unseen.length > 0) {
+      didMarkSeen.current = true;
       const store = useEchoStore.getState();
       for (const m of unseen) {
         store.markMatchSeen(m.matchId);
       }
     }
-    // Reset when new unseen matches arrive (component still mounted)
-    if (unseen.length > 0) {
-      hasMarkedSeen.current = true;
-    } else {
-      hasMarkedSeen.current = false;
-    }
   }, [matches]);
+
+  const handleInvite = async () => {
+    try {
+      await Share.share({
+        message:
+          "I'm using Echo to connect with people nearby! Download it and wave at me 👋",
+      });
+    } catch {
+      // User cancelled share
+    }
+  };
 
   return (
     <View className="flex-1 bg-echo-bg pt-16 px-4">
@@ -86,6 +92,15 @@ export default function HistoryScreen() {
             When you and someone nearby both wave at each other, you'll match
             and they'll appear here.
           </Text>
+          <TouchableOpacity
+            onPress={handleInvite}
+            className="mt-6 bg-echo-surface border border-echo-muted rounded-2xl py-3 px-6 flex-row items-center"
+          >
+            <Text className="text-lg mr-2">📲</Text>
+            <Text className="text-white font-semibold text-sm">
+              Invite Friends Nearby
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <SectionList

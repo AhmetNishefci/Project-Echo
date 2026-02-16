@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/services/supabase";
 import { logger } from "@/utils/logger";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
@@ -28,7 +29,7 @@ export default function RootLayout() {
   }, [setSession]);
 
   return (
-    <>
+    <ErrorBoundary>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -37,6 +38,6 @@ export default function RootLayout() {
           animation: "fade",
         }}
       />
-    </>
+    </ErrorBoundary>
   );
 }

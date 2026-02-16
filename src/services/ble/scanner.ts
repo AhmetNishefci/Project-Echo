@@ -32,7 +32,7 @@ function extractToken(device: Device): string | null {
   const name = device.localName ?? device.name;
   if (!name || !name.startsWith(LOCAL_NAME_PREFIX)) return null;
   const token = name.slice(LOCAL_NAME_PREFIX.length);
-  if (token.length === 0) return null;
+  if (token.length !== 16 || !/^[0-9a-f]{16}$/.test(token)) return null;
   return token;
 }
 
@@ -181,11 +181,14 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
         // react-native-ble-plx returns base64-encoded data
         // Use atob (available on Hermes 0.71+); no Buffer in React Native
         const decoded = atob(read.value);
-        if (decoded.length > 0) {
+        // Validate: must be exactly 16 lowercase hex characters
+        if (/^[0-9a-f]{16}$/.test(decoded)) {
           logger.ble(
             `GATT read token: ${decoded.substring(0, 8)}... from ${deviceId.substring(0, 8)}`,
           );
           upsertPeerWithToken(device, decoded);
+        } else {
+          logger.ble(`GATT read invalid token format from ${deviceId.substring(0, 8)}: len=${decoded.length}`);
         }
       }
     }

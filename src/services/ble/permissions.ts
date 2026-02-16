@@ -19,28 +19,42 @@ export async function requestBlePermissions(
 async function requestIOSPermissions(
   bleManager: BleManager,
 ): Promise<BlePermissionStatus> {
-  // On iOS, requesting BLE state triggers the system Bluetooth permission dialog.
-  // We just need to check the state after initialization.
+  // On iOS, calling onStateChange triggers the system Bluetooth permission dialog.
+  // We wait for a definitive state before resolving. If the user is slow to respond,
+  // we keep waiting (up to 60s) so we don't miss the permission grant.
   return new Promise((resolve) => {
+    let resolved = false;
+
     const sub = bleManager.onStateChange((state) => {
+      if (resolved) return;
+
       if (state === "PoweredOn") {
+        resolved = true;
         sub.remove();
         resolve("granted");
       } else if (state === "Unauthorized") {
+        resolved = true;
         sub.remove();
         resolve("denied");
       } else if (state === "PoweredOff") {
+        resolved = true;
         sub.remove();
-        // BLE is off but permission may be granted
+        // BLE permission is granted but the radio is off.
+        // The adapter state listener in bleManager will handle
+        // resuming when the user turns Bluetooth on.
         resolve("granted");
       }
+      // "Unknown" and "Resetting" states are transient — keep waiting.
     }, true);
 
-    // Timeout after 10s - if no state change, assume unknown
+    // Safety timeout — 60s is generous enough for system dialog interaction
     setTimeout(() => {
-      sub.remove();
-      resolve("unknown");
-    }, 10_000);
+      if (!resolved) {
+        resolved = true;
+        sub.remove();
+        resolve("unknown");
+      }
+    }, 60_000);
   });
 }
 

@@ -9,6 +9,9 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Supabase CLI temp files
+supabase/.temp/
+
 # Native
 .kotlin/
 *.orig.*

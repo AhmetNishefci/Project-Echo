@@ -1,15 +1,35 @@
-import { useCallback, useMemo, useState } from "react";
-import { View, Text, SectionList, TouchableOpacity, Alert } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  SectionList,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Share,
+} from "react-native";
 import { useRouter } from "expo-router";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withDelay,
+  Easing,
+  FadeIn,
+  FadeOut,
+} from "react-native-reanimated";
+import { impactMedium, impactLight, notifySuccess, notifyError } from "@/utils/haptics";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { echoBleManager } from "@/services/ble/bleManager";
-import { sendWave } from "@/services/echo/waves";
+import { sendWave, undoWave } from "@/services/echo/waves";
 import { PermissionGate } from "@/components/PermissionGate";
 import { BleStatusBar } from "@/components/StatusBar";
 import type { NearbyPeer, DistanceZone } from "@/types";
-import { getDistanceZone } from "@/types";
+import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
 import { logger } from "@/utils/logger";
+import { WAVE_UNDO_WINDOW_MS } from "@/services/ble/constants";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
@@ -29,13 +49,17 @@ export default function RadarScreen() {
   const {
     adapterState,
     isScanning,
+    isDiscoveryActive,
     isAdvertising,
     permissionStatus,
     nearbyPeers,
     error,
   } = useBleStore();
-  const { currentToken } = useEchoStore();
+  const { currentToken, isRotating } = useEchoStore();
+  const incomingWaveCount = useEchoStore((s) => s.incomingWaveCount);
   const [isStarting, setIsStarting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sections = useMemo<ZoneSection[]>(() => {
     const peers = Array.from(nearbyPeers.values());
@@ -55,7 +79,6 @@ export default function RadarScreen() {
       groups[zone].sort((a, b) => b.rssi - a.rssi);
     }
 
-    // Only include zones that have peers
     const order: DistanceZone[] = ["HERE", "CLOSE", "NEARBY"];
     return order
       .filter((zone) => groups[zone].length > 0)
@@ -72,6 +95,19 @@ export default function RadarScreen() {
     [nearbyPeers],
   );
 
+  const showToast = useCallback((message: string, durationMs = 4000) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast(message);
+    toastTimerRef.current = setTimeout(() => setToast(null), durationMs);
+  }, []);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   const handleStartDiscovery = useCallback(async () => {
     setIsStarting(true);
     try {
@@ -84,22 +120,32 @@ export default function RadarScreen() {
         return;
       }
 
-      if (!currentToken) {
+      let token = useEchoStore.getState().currentToken;
+      if (!token) {
+        for (let i = 0; i < 16; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          token = useEchoStore.getState().currentToken;
+          if (token) break;
+        }
+      }
+
+      if (!token) {
         Alert.alert(
-          "Not Ready",
-          "Waiting for server token. Please try again in a moment.",
+          "Connection Issue",
+          "Could not connect to the server. Check your internet and try again.",
         );
         return;
       }
 
       await echoBleManager.start();
+      impactLight();
     } catch (err) {
       logger.error("Failed to start discovery", err);
       Alert.alert("Error", "Failed to start Bluetooth discovery.");
     } finally {
       setIsStarting(false);
     }
-  }, [currentToken]);
+  }, []);
 
   const handleStopDiscovery = useCallback(async () => {
     await echoBleManager.stop();
@@ -109,7 +155,7 @@ export default function RadarScreen() {
     const store = useEchoStore.getState();
     if (store.hasPendingWaveTo(peer.ephemeralToken)) return;
 
-    // Optimistically mark as waved
+    impactMedium();
     store.addPendingWave(peer.ephemeralToken);
 
     logger.echo("Sending wave to peer", {
@@ -119,49 +165,51 @@ export default function RadarScreen() {
     const result = await sendWave(peer.ephemeralToken);
 
     if (result === "error") {
-      // Remove optimistic wave on error
       store.removePendingWave(peer.ephemeralToken);
+      notifyError();
       Alert.alert("Wave Failed", "Could not send wave. Try again.");
+    } else if (result === "already_matched") {
+      store.removePendingWave(peer.ephemeralToken);
+      Alert.alert("Already Matched", "You've already matched with this person!");
+    } else if (result === "rate_limited") {
+      store.removePendingWave(peer.ephemeralToken);
+      notifyError();
+      Alert.alert("Slow Down", "You're waving too fast. Wait a moment and try again.");
     } else if (result === "match") {
-      // Match screen navigation is handled by the layout's latestUnseenMatch listener
+      notifySuccess();
       logger.echo("Match from wave!");
+    } else if (result === "pending") {
+      showToast("Wave sent! They'll see it for 15 min. You can undo for 60s.");
+    }
+  }, [showToast]);
+
+  const handleUndo = useCallback(async (targetToken: string) => {
+    impactLight();
+    const success = await undoWave(targetToken);
+    if (success) {
+      showToast("Wave undone", 2000);
+    } else {
+      notifyError();
+      Alert.alert("Undo Failed", "Could not undo the wave. It may have already been seen.");
+    }
+  }, [showToast]);
+
+  const handleInvite = useCallback(async () => {
+    try {
+      await Share.share({
+        message:
+          "I'm using Echo to connect with people nearby! Download it and wave at me 👋",
+      });
+    } catch {
+      // User cancelled share
     }
   }, []);
 
   const renderPeer = useCallback(
-    ({ item }: { item: NearbyPeer }) => {
-      const hasPendingWave = useEchoStore
-        .getState()
-        .hasPendingWaveTo(item.ephemeralToken);
-      return (
-        <TouchableOpacity
-          onPress={() => handleWave(item)}
-          disabled={hasPendingWave}
-          className={`py-3 px-4 mb-2 rounded-xl flex-row items-center justify-between ${
-            hasPendingWave ? "bg-echo-surface/50" : "bg-echo-surface"
-          }`}
-          activeOpacity={0.7}
-        >
-          <View className="flex-row items-center flex-1">
-            <View className="w-3 h-3 rounded-full bg-echo-wave mr-3" />
-            <Text className="text-white text-base">
-              Someone{" "}
-              <Text className="text-echo-muted text-xs">
-                {item.rssi} dBm
-              </Text>
-            </Text>
-          </View>
-          <Text
-            className={`font-semibold text-sm ${
-              hasPendingWave ? "text-echo-muted" : "text-echo-wave"
-            }`}
-          >
-            {hasPendingWave ? "Waved" : "Wave"}
-          </Text>
-        </TouchableOpacity>
-      );
-    },
-    [handleWave],
+    ({ item }: { item: NearbyPeer }) => (
+      <PeerRow peer={item} onWave={handleWave} onUndo={handleUndo} />
+    ),
+    [handleWave, handleUndo],
   );
 
   const renderSectionHeader = useCallback(
@@ -180,7 +228,7 @@ export default function RadarScreen() {
   );
 
   // Show permission gate if not granted
-  if (permissionStatus !== "granted" && !isScanning) {
+  if (permissionStatus !== "granted" && !isDiscoveryActive) {
     return (
       <PermissionGate
         onRequestPermissions={handleStartDiscovery}
@@ -196,17 +244,13 @@ export default function RadarScreen() {
         <View>
           <Text className="text-3xl font-bold text-white">Echo</Text>
           <Text className="text-echo-muted text-sm mt-1">
-            {totalPeers === 0
-              ? "Searching for people nearby..."
-              : `${totalPeers} ${totalPeers === 1 ? "person" : "people"} nearby`}
+            {totalPeers > 0
+              ? `${totalPeers} ${totalPeers === 1 ? "person" : "people"} nearby`
+              : isDiscoveryActive
+                ? "Searching for people nearby..."
+                : "Start scanning to find people"}
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={() => router.push("/(main)/settings")}
-          className="p-2"
-        >
-          <Text className="text-echo-muted text-2xl">???</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Status bar */}
@@ -217,16 +261,46 @@ export default function RadarScreen() {
         error={error}
       />
 
+      {/* Incoming wave banner */}
+      {incomingWaveCount > 0 && (
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          exiting={FadeOut.duration(200)}
+          className="bg-echo-wave/20 border border-echo-wave/40 rounded-2xl py-3 px-4 mb-4 flex-row items-center"
+        >
+          <Text className="text-2xl mr-3">👋</Text>
+          <View className="flex-1">
+            <Text className="text-white font-semibold text-sm">
+              {incomingWaveCount === 1
+                ? "Someone nearby waved at you!"
+                : `${incomingWaveCount} people nearby waved at you!`}
+            </Text>
+            <Text className="text-echo-muted text-xs mt-0.5">
+              Wave back to match and see their Instagram
+            </Text>
+          </View>
+        </Animated.View>
+      )}
+
       {/* Start/Stop button */}
-      {!isScanning && !isAdvertising ? (
+      {!isDiscoveryActive ? (
         <TouchableOpacity
           onPress={handleStartDiscovery}
           disabled={isStarting}
-          className="bg-echo-primary py-4 rounded-2xl items-center mb-4"
+          className={`py-4 rounded-2xl items-center mb-4 ${isStarting ? "bg-echo-primary/70" : "bg-echo-primary"}`}
         >
-          <Text className="text-white text-lg font-semibold">
-            {isStarting ? "Starting..." : "Start Discovery"}
-          </Text>
+          {isStarting ? (
+            <View className="flex-row items-center">
+              <ActivityIndicator size="small" color="white" />
+              <Text className="text-white text-lg font-semibold ml-2">
+                {currentToken ? "Starting..." : "Connecting..."}
+              </Text>
+            </View>
+          ) : (
+            <Text className="text-white text-lg font-semibold">
+              Start Discovery
+            </Text>
+          )}
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -248,18 +322,225 @@ export default function RadarScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         stickySectionHeadersEnabled={false}
         ListEmptyComponent={
-          isScanning ? (
-            <View className="items-center mt-20">
-              <Text className="text-echo-muted text-base">
-                Scanning for Echo users...
+          isDiscoveryActive ? (
+            <View className="items-center mt-16">
+              {/* Pulse animation */}
+              <ScanPulse />
+
+              <Text className="text-white text-base font-semibold mb-2 mt-6">
+                Looking for people...
               </Text>
-              <Text className="text-echo-muted text-sm mt-2">
-                Make sure another device is running Echo nearby
+              <Text className="text-echo-muted text-sm text-center px-8 mb-8">
+                Wave at someone nearby. If they wave back, you'll match and see
+                each other's Instagram!
               </Text>
+
+              {/* Invite CTA */}
+              <TouchableOpacity
+                onPress={handleInvite}
+                className="bg-echo-surface border border-echo-muted rounded-2xl py-3 px-6 flex-row items-center"
+              >
+                <Text className="text-lg mr-2">📲</Text>
+                <Text className="text-white font-semibold text-sm">
+                  Invite Friends Nearby
+                </Text>
+              </TouchableOpacity>
             </View>
-          ) : null
+          ) : (
+            <View className="items-center mt-16">
+              {/* Static radar icon (no pulse) */}
+              <View className="w-36 h-36 items-center justify-center">
+                <View className="absolute w-36 h-36 rounded-full border-2 border-indigo-500/15" />
+                <View className="absolute w-24 h-24 rounded-full border-2 border-indigo-500/20" />
+                <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center border-2 border-echo-primary/40">
+                  <Text className="text-3xl">📡</Text>
+                </View>
+              </View>
+
+              <Text className="text-white text-lg font-bold mb-2 mt-6">
+                Discover People Nearby
+              </Text>
+              <Text className="text-echo-muted text-sm text-center px-8 leading-5">
+                Tap <Text className="text-echo-primary font-semibold">Start Discovery</Text> to
+                find people around you. Wave at someone — if they wave back,
+                you'll match and see each other's Instagram.
+              </Text>
+
+              {/* Invite CTA */}
+              <TouchableOpacity
+                onPress={handleInvite}
+                className="bg-echo-surface border border-echo-muted rounded-2xl py-3 px-6 flex-row items-center mt-8"
+              >
+                <Text className="text-lg mr-2">📲</Text>
+                <Text className="text-white font-semibold text-sm">
+                  Invite Friends Nearby
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )
         }
       />
+
+      {/* Toast overlay */}
+      {toast && (
+        <Animated.View
+          entering={FadeIn.duration(200)}
+          className="absolute bottom-28 left-6 right-6 bg-echo-surface border border-echo-muted rounded-2xl py-3 px-4"
+        >
+          <Text className="text-white text-sm text-center">{toast}</Text>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+/* ─── Scanning Pulse Animation ──────────────────────────────── */
+
+function PulseRing({ delay }: { delay: number }) {
+  const scale = useSharedValue(0.3);
+  const opacity = useSharedValue(0.6);
+
+  useEffect(() => {
+    scale.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(1, { duration: 2400, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      ),
+    );
+    opacity.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(0, { duration: 2400, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      ),
+    );
+  }, [delay, scale, opacity]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          width: 140,
+          height: 140,
+          borderRadius: 70,
+          borderWidth: 2,
+          borderColor: "rgba(99, 102, 241, 0.35)",
+        },
+        animatedStyle,
+      ]}
+    />
+  );
+}
+
+function ScanPulse() {
+  return (
+    <View className="w-36 h-36 items-center justify-center">
+      <PulseRing delay={0} />
+      <PulseRing delay={800} />
+      <PulseRing delay={1600} />
+      <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center border-2 border-echo-primary/40">
+        <Text className="text-3xl">📡</Text>
+      </View>
+    </View>
+  );
+}
+
+/* ─── Peer Row ──────────────────────────────────────────────── */
+
+function PeerRow({
+  peer,
+  onWave,
+  onUndo,
+}: {
+  peer: NearbyPeer;
+  onWave: (p: NearbyPeer) => void;
+  onUndo: (token: string) => void;
+}) {
+  const wavePending = useEchoStore(
+    (s) => s.pendingWaves.get(peer.ephemeralToken) ?? null,
+  );
+  const signal = getSignalLabel(peer.rssi);
+  const avatar = useMemo(
+    () => getAvatarForToken(peer.ephemeralToken),
+    [peer.ephemeralToken],
+  );
+  const freshness = getTimeSince(peer.lastSeen);
+
+  // Undo countdown
+  const [canUndo, setCanUndo] = useState(false);
+
+  useEffect(() => {
+    if (!wavePending) {
+      setCanUndo(false);
+      return;
+    }
+
+    const elapsed = Date.now() - wavePending.sentAt;
+    if (elapsed >= WAVE_UNDO_WINDOW_MS) {
+      setCanUndo(false);
+      return;
+    }
+
+    setCanUndo(true);
+    const timer = setTimeout(() => {
+      setCanUndo(false);
+    }, WAVE_UNDO_WINDOW_MS - elapsed);
+
+    return () => clearTimeout(timer);
+  }, [wavePending]);
+
+  return (
+    <View className="py-3 px-4 mb-2 rounded-xl flex-row items-center bg-echo-surface">
+      {/* Avatar */}
+      <View
+        className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${avatar.bg} border-2 ${avatar.ring}`}
+      >
+        <Text className="text-lg">{avatar.emoji}</Text>
+      </View>
+
+      {/* Info */}
+      <View className="flex-1">
+        <Text className="text-white text-base">Someone</Text>
+        <View className="flex-row items-center">
+          <Text className="text-echo-muted text-xs">{signal}</Text>
+          <Text className="text-echo-muted text-xs mx-1">·</Text>
+          <Text className="text-echo-muted text-xs">{freshness}</Text>
+        </View>
+      </View>
+
+      {/* Wave / Undo / Waved */}
+      {wavePending ? (
+        canUndo ? (
+          <TouchableOpacity
+            onPress={() => onUndo(peer.ephemeralToken)}
+            className="bg-orange-500/20 rounded-lg px-3 py-1.5"
+          >
+            <Text className="text-orange-400 font-semibold text-sm">Undo</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text className="text-echo-muted font-semibold text-sm">
+            Waved ✓
+          </Text>
+        )
+      ) : (
+        <TouchableOpacity
+          onPress={() => onWave(peer)}
+          className="bg-echo-wave/20 rounded-lg px-3 py-1.5"
+        >
+          <Text className="text-echo-wave font-semibold text-sm">
+            Wave 👋
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

@@ -5,6 +5,7 @@ import { PEER_STALE_TIMEOUT_MS } from "@/services/ble/constants";
 interface BleState {
   adapterState: BleAdapterState;
   isScanning: boolean;
+  isDiscoveryActive: boolean;
   isAdvertising: boolean;
   permissionStatus: BlePermissionStatus;
   nearbyPeers: Map<string, NearbyPeer>;
@@ -12,6 +13,7 @@ interface BleState {
 
   setAdapterState: (state: BleAdapterState) => void;
   setScanning: (scanning: boolean) => void;
+  setDiscoveryActive: (active: boolean) => void;
   setAdvertising: (advertising: boolean) => void;
   setPermissionStatus: (status: BlePermissionStatus) => void;
   setError: (error: string | null) => void;
@@ -25,6 +27,7 @@ interface BleState {
 export const useBleStore = create<BleState>((set, get) => ({
   adapterState: "Unknown",
   isScanning: false,
+  isDiscoveryActive: false,
   isAdvertising: false,
   permissionStatus: "unknown",
   nearbyPeers: new Map(),
@@ -32,6 +35,7 @@ export const useBleStore = create<BleState>((set, get) => ({
 
   setAdapterState: (adapterState) => set({ adapterState }),
   setScanning: (isScanning) => set({ isScanning }),
+  setDiscoveryActive: (isDiscoveryActive) => set({ isDiscoveryActive }),
   setAdvertising: (isAdvertising) => set({ isAdvertising }),
   setPermissionStatus: (permissionStatus) => set({ permissionStatus }),
   setError: (error) => set({ error }),
@@ -70,6 +74,7 @@ export const useBleStore = create<BleState>((set, get) => ({
     set({
       adapterState: "Unknown",
       isScanning: false,
+      isDiscoveryActive: false,
       isAdvertising: false,
       permissionStatus: "unknown",
       nearbyPeers: new Map(),

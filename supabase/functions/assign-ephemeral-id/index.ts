@@ -46,6 +46,28 @@ serve(async (req: Request) => {
 
     const userId = user.id;
 
+    // Ensure profile exists (handles case where trigger hasn't fired)
+    const { error: profileError } = await adminClient
+      .from("profiles")
+      .upsert(
+        {
+          id: userId,
+          is_anonymous: user.is_anonymous ?? true,
+        },
+        { onConflict: "id" },
+      );
+
+    if (profileError) {
+      console.error("Failed to ensure profile:", profileError);
+      return new Response(
+        JSON.stringify({ error: "Failed to ensure profile", details: profileError.message }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // Deactivate existing active tokens for this user
     await adminClient
       .from("ephemeral_ids")

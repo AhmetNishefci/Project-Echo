@@ -6,13 +6,14 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 let channel: RealtimeChannel | null = null;
 
 /**
- * Subscribe to match events for the given user.
- * When the server broadcasts a 'match' event to this user's channel,
- * the match is added to the store and the UI reacts.
+ * Subscribe to match AND wave events for the given user.
+ * - "match" events: add match to store so the match screen triggers.
+ * - "wave" events: increment incoming wave counter (anonymous notification).
+ * - "wave_undo" events: decrement incoming wave counter.
  */
 export function subscribeToMatches(userId: string): void {
   if (channel) {
-    logger.echo("Already subscribed to matches");
+    logger.echo("Already subscribed to realtime");
     return;
   }
 
@@ -24,6 +25,7 @@ export function subscribeToMatches(userId: string): void {
       const data = payload.payload as {
         match_id: string;
         matched_user_id: string;
+        instagram_handle?: string;
         created_at?: string;
       };
 
@@ -31,10 +33,19 @@ export function subscribeToMatches(userId: string): void {
         useEchoStore.getState().addMatch({
           matchId: data.match_id,
           matchedUserId: data.matched_user_id,
+          instagramHandle: data.instagram_handle ?? undefined,
           createdAt: data.created_at ?? new Date().toISOString(),
           seen: false,
         });
       }
+    })
+    .on("broadcast", { event: "wave" }, (payload) => {
+      logger.echo("Incoming wave event!", payload);
+      useEchoStore.getState().incrementIncomingWaves();
+    })
+    .on("broadcast", { event: "wave_undo" }, (payload) => {
+      logger.echo("Wave undo event received", payload);
+      useEchoStore.getState().decrementIncomingWaves();
     })
     .subscribe((status) => {
       logger.echo("Realtime subscription status", { status });
@@ -42,12 +53,12 @@ export function subscribeToMatches(userId: string): void {
 }
 
 /**
- * Unsubscribe from match events.
+ * Unsubscribe from realtime events.
  */
 export function unsubscribeFromMatches(): void {
   if (channel) {
     supabase.removeChannel(channel);
     channel = null;
-    logger.echo("Unsubscribed from matches");
+    logger.echo("Unsubscribed from realtime");
   }
 }

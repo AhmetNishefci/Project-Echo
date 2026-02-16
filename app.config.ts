@@ -47,10 +47,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     [
       "react-native-ble-plx",
       {
-        isBackgroundEnabled: false,
-        modes: ["central"],
+        isBackgroundEnabled: true,
+        modes: ["central", "peripheral"],
         bluetoothAlwaysPermission:
           "Echo uses Bluetooth to discover nearby people.",
+      },
+    ],
+    [
+      "expo-notifications",
+      {
+        icon: "./assets/icon.png",
+        sounds: [],
       },
     ],
   ],

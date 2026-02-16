@@ -42,6 +42,16 @@ export function BleStatusBar({
     );
   }
 
+  if (adapterState === "Unsupported") {
+    return (
+      <View className="bg-echo-danger/20 rounded-xl px-4 py-2 mb-4">
+        <Text className="text-echo-danger text-sm">
+          This device does not support Bluetooth Low Energy.
+        </Text>
+      </View>
+    );
+  }
+
   if (!isScanning && !isAdvertising) {
     return null;
   }

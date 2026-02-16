@@ -1,5 +1,5 @@
 import { BleManager as PlxBleManager, State, Subscription } from "react-native-ble-plx";
-import { startScanning, stopScanning } from "./scanner";
+import { startScanning, stopScanning, pruneGattReadCache } from "./scanner";
 import {
   startAdvertising,
   stopAdvertising,
@@ -88,6 +88,9 @@ class EchoBleManager {
       useBleStore.getState().setError("Failed to start advertising");
     }
 
+    // Mark discovery active (stays true across scan cycles)
+    useBleStore.getState().setDiscoveryActive(true);
+
     // Start scanning cycle
     this.startScanCycle();
 
@@ -117,6 +120,7 @@ class EchoBleManager {
 
     useBleStore.getState().setScanning(false);
     useBleStore.getState().setAdvertising(false);
+    useBleStore.getState().setDiscoveryActive(false);
   }
 
   /**
@@ -140,6 +144,20 @@ class EchoBleManager {
     this.bleManager?.destroy();
     this.bleManager = null;
     logger.ble("BLE Manager destroyed");
+  }
+
+  /**
+   * Restart the scan cycle at full speed.
+   * Called when the app returns to foreground after running in background.
+   */
+  restartScanCycle(): void {
+    if (!this.bleManager || !this.isRunning) return;
+    this.stopScanCycle();
+    if (this.bleManager) {
+      stopScanning(this.bleManager);
+    }
+    this.startScanCycle();
+    logger.ble("Scan cycle restarted");
   }
 
   // --- Private methods ---
@@ -171,6 +189,7 @@ class EchoBleManager {
   private startPruning(): void {
     this.pruneTimer = setInterval(() => {
       useBleStore.getState().pruneStale();
+      pruneGattReadCache();
     }, 5_000); // Prune every 5 seconds
   }
 
@@ -187,9 +206,20 @@ class EchoBleManager {
     useBleStore.getState().setScanning(false);
   }
 
-  private resume(): void {
+  private async resume(): Promise<void> {
     logger.ble("Resuming BLE engine (adapter on)");
     this.startScanCycle();
+
+    // Restart advertising with current token
+    const token = useEchoStore.getState().currentToken;
+    if (token) {
+      try {
+        await startAdvertising(token);
+        useBleStore.getState().setAdvertising(true);
+      } catch (err) {
+        logger.error("Failed to restart advertising after resume", err);
+      }
+    }
   }
 
   private mapState(state: State): BleAdapterState {

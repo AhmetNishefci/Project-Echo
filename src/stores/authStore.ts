@@ -6,9 +6,12 @@ interface AuthState {
   userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  instagramHandle: string | null;
+  hasCompletedOnboarding: boolean;
 
   setSession: (session: Session | null) => void;
   setLoading: (loading: boolean) => void;
+  setInstagramHandle: (handle: string | null) => void;
   reset: () => void;
 }
 
@@ -17,6 +20,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   userId: null,
   isLoading: true,
   isAuthenticated: false,
+  instagramHandle: null,
+  hasCompletedOnboarding: false,
 
   setSession: (session) =>
     set({
@@ -28,11 +33,19 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setLoading: (isLoading) => set({ isLoading }),
 
+  setInstagramHandle: (handle) =>
+    set({
+      instagramHandle: handle,
+      hasCompletedOnboarding: !!handle,
+    }),
+
   reset: () =>
     set({
       session: null,
       userId: null,
       isLoading: false,
       isAuthenticated: false,
+      instagramHandle: null,
+      hasCompletedOnboarding: false,
     }),
 }));

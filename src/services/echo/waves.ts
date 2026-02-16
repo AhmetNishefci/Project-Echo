@@ -2,6 +2,7 @@ import { supabase } from "../supabase";
 import { useEchoStore } from "@/stores/echoStore";
 import type { WaveResult } from "@/types";
 import { logger } from "@/utils/logger";
+import { getFreshSession } from "./session";
 
 /**
  * Send a wave at a nearby peer identified by their ephemeral token.
@@ -14,9 +15,7 @@ export async function sendWave(
   try {
     useEchoStore.getState().setWaving(true);
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const session = await getFreshSession();
 
     if (!session) {
       logger.error("Cannot send wave: no active session");
@@ -39,6 +38,7 @@ export async function sendWave(
       status: string;
       match_id?: string;
       matched_user_id?: string;
+      instagram_handle?: string;
       reason?: string;
     };
 
@@ -48,6 +48,7 @@ export async function sendWave(
       useEchoStore.getState().addMatch({
         matchId: result.match_id,
         matchedUserId: result.matched_user_id,
+        instagramHandle: result.instagram_handle ?? undefined,
         createdAt: new Date().toISOString(),
         seen: false,
       });
@@ -55,8 +56,15 @@ export async function sendWave(
     }
 
     if (result.status === "pending") {
-      useEchoStore.getState().addPendingWave(targetEphemeralToken);
       return "pending";
+    }
+
+    if (result.status === "already_matched") {
+      return "already_matched";
+    }
+
+    if (result.status === "error" && result.reason === "rate_limited") {
+      return "rate_limited";
     }
 
     return "error";
@@ -65,5 +73,41 @@ export async function sendWave(
     return "error";
   } finally {
     useEchoStore.getState().setWaving(false);
+  }
+}
+
+/**
+ * Undo a wave that was sent within the undo window.
+ * Deletes the wave record server-side.
+ */
+export async function undoWave(
+  targetEphemeralToken: string,
+): Promise<boolean> {
+  try {
+    const session = await getFreshSession();
+
+    if (!session) return false;
+
+    const { error } = await supabase.functions.invoke("send-wave", {
+      body: {
+        target_ephemeral_token: targetEphemeralToken,
+        action: "undo",
+      },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+
+    if (error) {
+      logger.error("Undo wave failed", error);
+      return false;
+    }
+
+    useEchoStore.getState().removePendingWave(targetEphemeralToken);
+    logger.echo("Wave undone", { token: targetEphemeralToken.substring(0, 8) });
+    return true;
+  } catch (error) {
+    logger.error("Undo wave error", error);
+    return false;
   }
 }

@@ -50,7 +50,7 @@ export function PermissionGate({
 function BulletPoint({ text }: { text: string }) {
   return (
     <View className="flex-row items-start mb-2">
-      <Text className="text-echo-accent mr-2 mt-0.5">*</Text>
+      <Text className="text-echo-accent mr-2 mt-0.5">✓</Text>
       <Text className="text-echo-text text-sm flex-1">{text}</Text>
     </View>
   );

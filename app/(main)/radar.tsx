@@ -118,7 +118,7 @@ export default function RadarScreen() {
       if (result !== "granted") {
         Alert.alert(
           "Permissions Required",
-          "Echo needs Bluetooth permissions to discover nearby people.",
+          "Wave needs Bluetooth permissions to discover nearby people.",
         );
         return;
       }
@@ -203,7 +203,7 @@ export default function RadarScreen() {
     try {
       await Share.share({
         message:
-          "I'm using Echo to connect with people nearby! Download it and wave at me 👋",
+          "I'm using Wave to connect with people nearby! Download it and wave at me 👋",
       });
     } catch {
       // User cancelled share
@@ -247,7 +247,7 @@ export default function RadarScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between mb-4">
         <View>
-          <Text className="text-3xl font-bold text-white">Echo</Text>
+          <Text className="text-3xl font-bold text-white">Wave</Text>
           <Text className="text-echo-muted text-sm mt-1">
             {totalPeers > 0
               ? `${totalPeers} ${totalPeers === 1 ? "person" : "people"} nearby`

@@ -2,14 +2,14 @@ import { ExpoConfig, ConfigContext } from "expo/config";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "Echo",
-  slug: "project-echo",
+  name: "Wave",
+  slug: "wave",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "dark",
   newArchEnabled: true,
-  scheme: "echo",
+  scheme: "wave",
   splash: {
     image: "./assets/splash-icon.png",
     resizeMode: "contain",
@@ -17,13 +17,17 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: false,
-    bundleIdentifier: "com.ahmetnishefci.echo",
+    bundleIdentifier: "com.ahmetnishefci.waveapp",
+    appleTeamId: "MC275WP2T8",
+    entitlements: {
+      "aps-environment": "development",
+    },
     infoPlist: {
       NSBluetoothAlwaysUsageDescription:
-        "Echo uses Bluetooth to discover nearby people and let you wave at them.",
+        "Wave uses Bluetooth to discover nearby people and connect with them.",
       NSBluetoothPeripheralUsageDescription:
-        "Echo broadcasts your presence so nearby people can discover you.",
-      UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral"],
+        "Wave broadcasts your presence so nearby people can discover you.",
+      UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral", "remote-notification"],
     },
   },
   android: {
@@ -31,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: "./assets/adaptive-icon.png",
       backgroundColor: "#0a0a0a",
     },
-    package: "com.ahmetnishefci.echo",
+    package: "com.ahmetnishefci.waveapp",
     permissions: [
       "BLUETOOTH",
       "BLUETOOTH_ADMIN",
@@ -42,6 +46,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       "ACCESS_COARSE_LOCATION",
     ],
   },
+  extra: {
+    eas: {
+      projectId: "80494bfb-f7d5-4924-b53c-c1721a95cddb",
+    },
+  },
   plugins: [
     "expo-router",
     [
@@ -50,7 +59,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         isBackgroundEnabled: true,
         modes: ["central", "peripheral"],
         bluetoothAlwaysPermission:
-          "Echo uses Bluetooth to discover nearby people.",
+          "Wave uses Bluetooth to discover nearby people.",
       },
     ],
     [

@@ -20,12 +20,12 @@ export function PermissionGate({
         Discover Nearby
       </Text>
       <Text className="text-echo-muted text-center text-base mb-8 leading-6">
-        Echo uses Bluetooth to find people around you. Your identity stays
+        Wave uses Bluetooth to find people around you. Your identity stays
         anonymous until you both wave at each other.
       </Text>
 
       <View className="bg-echo-surface rounded-2xl p-4 mb-8 w-full">
-        <BulletPoint text="Bluetooth scans for nearby Echo users" />
+        <BulletPoint text="Bluetooth scans for nearby Wave users" />
         <BulletPoint text="No GPS tracking - only proximity" />
         <BulletPoint text="Your identity is hidden until mutual match" />
       </View>

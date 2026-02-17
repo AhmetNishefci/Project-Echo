@@ -208,7 +208,7 @@ export default function SettingsScreen() {
       </Section>
 
       {/* Echo Protocol */}
-      <Section title="Echo Protocol">
+      <Section title="Wave Protocol">
         <InfoRow
           label="Token"
           value={currentToken ? currentToken.substring(0, 12) + "..." : "None"}
@@ -238,7 +238,7 @@ export default function SettingsScreen() {
                 { text: "OK" },
                 {
                   text: "Email Support",
-                  onPress: () => Linking.openURL("mailto:support@echo-app.com?subject=Report%20User"),
+                  onPress: () => Linking.openURL("mailto:support@wave-app.com?subject=Report%20User"),
                 },
               ],
             );
@@ -264,14 +264,14 @@ export default function SettingsScreen() {
       {/* Legal */}
       <Section title="Legal">
         <TouchableOpacity
-          onPress={() => Linking.openURL("https://echo-app.com/privacy")}
+          onPress={() => Linking.openURL("https://wave-app.com/privacy")}
           className="py-3 flex-row justify-between items-center"
         >
           <Text className="text-white text-sm">Privacy Policy</Text>
           <Text className="text-echo-muted text-xs">›</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => Linking.openURL("https://echo-app.com/terms")}
+          onPress={() => Linking.openURL("https://wave-app.com/terms")}
           className="py-3 flex-row justify-between items-center"
         >
           <Text className="text-white text-sm">Terms of Service</Text>
@@ -295,7 +295,7 @@ export default function SettingsScreen() {
       {/* App info */}
       <View className="items-center mt-4 mb-12">
         <Text className="text-echo-muted text-xs">
-          Echo v{Constants.expoConfig?.version ?? "1.0.0"}
+          Wave v{Constants.expoConfig?.version ?? "1.0.0"}
         </Text>
         <Text className="text-echo-muted text-xs mt-1">
           Built with 💜 using BLE

@@ -66,7 +66,7 @@ export default function IndexScreen() {
 
   return (
     <View className="flex-1 items-center justify-center bg-echo-bg">
-      <Text className="text-4xl font-bold text-echo-primary mb-2">Echo</Text>
+      <Text className="text-4xl font-bold text-echo-primary mb-2">Wave</Text>
       <Text className="text-echo-muted text-base mb-8">
         Discover who's nearby
       </Text>

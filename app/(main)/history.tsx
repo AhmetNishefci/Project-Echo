@@ -60,7 +60,7 @@ export default function HistoryScreen() {
     try {
       await Share.share({
         message:
-          "I'm using Echo to connect with people nearby! Download it and wave at me 👋",
+          "I'm using Wave to connect with people nearby! Download it and wave at me 👋",
       });
     } catch {
       // User cancelled share
@@ -160,7 +160,7 @@ function MatchRow({ match }: { match: Match }) {
 
   const handleReport = useCallback(() => {
     Linking.openURL(
-      `mailto:support@echo-app.com?subject=Report%20User&body=Match%20ID:%20${match.matchId}%0APlease%20describe%20the%20issue:%0A`,
+      `mailto:support@wave-app.com?subject=Report%20User&body=Match%20ID:%20${match.matchId}%0APlease%20describe%20the%20issue:%0A`,
     );
   }, [match.matchId]);
 

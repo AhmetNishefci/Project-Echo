@@ -124,6 +124,13 @@ serve(async (req: Request) => {
         } catch (err) {
           console.error("wave_undo broadcast failed:", err);
         }
+
+        // Send push notification for wave undo
+        await sendExpoPush(adminClient, tokenRow.user_id, {
+          title: "Wave",
+          body: "A nearby wave was undone",
+          data: { type: "wave_undo" },
+        });
       }
 
       return new Response(JSON.stringify({ status: "undone" }), {
@@ -201,6 +208,13 @@ serve(async (req: Request) => {
         } catch (err) {
           console.error("Wave broadcast to target failed:", err);
         }
+
+        // Send push notification to target user
+        await sendExpoPush(adminClient, targetUserId, {
+          title: "Someone waved at you! 👋",
+          body: "Open Wave to wave back",
+          data: { type: "wave" },
+        });
       }
     }
 
@@ -239,23 +253,32 @@ serve(async (req: Request) => {
       });
       adminClient.removeChannel(matchCh);
 
-      // Send push notifications to both users
-      await sendMatchPushNotifications(adminClient, [
-        {
-          userId: user.id,
-          matchedUserId: result.matched_user_id,
-          matchId: result.match_id!,
-          createdAt: matchPayload.created_at,
-          instagramHandle: matchedInstagramHandle,
+      // Send push notification to the OTHER user
+      // (the waver already gets the match from the HTTP response)
+      await sendExpoPush(adminClient, result.matched_user_id, {
+        title: "It's a Match! 🎉",
+        body: "Someone waved back! Open Wave to see who.",
+        data: {
+          type: "match",
+          match_id: result.match_id,
+          matched_user_id: user.id,
+          instagram_handle: waverHandle,
+          created_at: matchPayload.created_at,
         },
-        {
-          userId: result.matched_user_id,
-          matchedUserId: user.id,
-          matchId: result.match_id!,
-          createdAt: matchPayload.created_at,
-          instagramHandle: waverHandle,
+      });
+
+      // Also push the waver (in case they backgrounded the app)
+      await sendExpoPush(adminClient, user.id, {
+        title: "It's a Match! 🎉",
+        body: "Someone waved back! Open Wave to see who.",
+        data: {
+          type: "match",
+          match_id: result.match_id,
+          matched_user_id: result.matched_user_id,
+          instagram_handle: matchedInstagramHandle,
+          created_at: matchPayload.created_at,
         },
-      ]);
+      });
     }
 
     // ─── ALREADY MATCHED → return instagram handle so client can re-populate ──
@@ -286,199 +309,57 @@ serve(async (req: Request) => {
   }
 });
 
-// --- Push notification helpers ---
-
-interface MatchPushTarget {
-  userId: string;
-  matchedUserId: string;
-  matchId: string;
-  createdAt: string;
-  instagramHandle: string | null;
-}
+// --- Expo Push Notification helper ---
 
 /**
- * Send APNs push notifications to users involved in a match.
- * Uses native APNs HTTP/2 API via Supabase's built-in APNs integration.
+ * Send a push notification via Expo Push API.
+ * Tokens are stored as Expo Push Tokens (ExponentPushToken[xxx]).
  */
-async function sendMatchPushNotifications(
+async function sendExpoPush(
   adminClient: ReturnType<typeof createClient>,
-  targets: MatchPushTarget[],
+  targetUserId: string,
+  notification: {
+    title: string;
+    body: string;
+    data?: Record<string, unknown>;
+  },
 ): Promise<void> {
-  for (const target of targets) {
-    try {
-      // Look up push token for this user
-      const { data: tokenRows, error } = await adminClient
-        .from("push_tokens")
-        .select("token, platform")
-        .eq("user_id", target.userId);
-
-      if (error || !tokenRows || tokenRows.length === 0) {
-        console.log(`No push token for user ${target.userId}, skipping`);
-        continue;
-      }
-
-      for (const row of tokenRows) {
-        if (row.platform === "ios") {
-          await sendApnsPush(row.token, target);
-        }
-        // Android FCM can be added later
-      }
-    } catch (err) {
-      console.error(`Push notification failed for ${target.userId}:`, err);
-    }
-  }
-}
-
-/**
- * Send an APNs push notification using HTTP/2 API.
- * Requires APNs auth key to be configured as environment variables.
- */
-async function sendApnsPush(
-  deviceToken: string,
-  target: MatchPushTarget,
-): Promise<void> {
-  const apnsKeyId = Deno.env.get("APNS_KEY_ID");
-  const apnsTeamId = Deno.env.get("APNS_TEAM_ID");
-  const apnsPrivateKey = Deno.env.get("APNS_PRIVATE_KEY");
-  const bundleId = "com.ahmetnishefci.echo";
-
-  if (!apnsKeyId || !apnsTeamId || !apnsPrivateKey) {
-    console.log("APNs credentials not configured, skipping push");
-    return;
-  }
-
   try {
-    // Create JWT for APNs authentication
-    const jwt = await createApnsJwt(apnsKeyId, apnsTeamId, apnsPrivateKey);
+    const { data: tokenRows } = await adminClient
+      .from("push_tokens")
+      .select("token")
+      .eq("user_id", targetUserId);
 
-    const isProduction = Deno.env.get("APNS_PRODUCTION") === "true";
-    const apnsHost = isProduction
-      ? "https://api.push.apple.com"
-      : "https://api.sandbox.push.apple.com";
+    if (!tokenRows || tokenRows.length === 0) {
+      console.log(`No push token for user ${targetUserId}, skipping push`);
+      return;
+    }
 
-    const payload = {
-      aps: {
-        alert: {
-          title: "It's a Match! 🎉",
-          body: "Someone waved back at you! Open Echo to see your match.",
-        },
-        sound: "default",
-        badge: 1,
-        "mutable-content": 1,
+    const messages = tokenRows.map((row: { token: string }) => ({
+      to: row.token,
+      title: notification.title,
+      body: notification.body,
+      sound: "default" as const,
+      data: notification.data ?? {},
+    }));
+
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
-      type: "match",
-      match_id: target.matchId,
-      matched_user_id: target.matchedUserId,
-      instagram_handle: target.instagramHandle,
-      created_at: target.createdAt,
-    };
-
-    const response = await fetch(
-      `${apnsHost}/3/device/${deviceToken}`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `bearer ${jwt}`,
-          "apns-topic": bundleId,
-          "apns-push-type": "alert",
-          "apns-priority": "10",
-          "apns-expiration": "0",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      },
-    );
+      body: JSON.stringify(messages),
+    });
 
     if (!response.ok) {
       const body = await response.text();
-      console.error(`APNs error (${response.status}):`, body);
+      console.error(`Expo push error (${response.status}):`, body);
     } else {
-      console.log(`Push sent to device ${deviceToken.substring(0, 8)}...`);
+      const result = await response.json();
+      console.log(`Push sent to user ${targetUserId}:`, JSON.stringify(result));
     }
   } catch (err) {
-    console.error("APNs send failed:", err);
+    console.error(`Push notification failed for ${targetUserId}:`, err);
   }
-}
-
-/**
- * Create a JWT for APNs authentication (ES256 / P-256).
- */
-async function createApnsJwt(
-  keyId: string,
-  teamId: string,
-  privateKeyPem: string,
-): Promise<string> {
-  // Header
-  const header = { alg: "ES256", kid: keyId };
-  // Claims (valid for 1 hour)
-  const now = Math.floor(Date.now() / 1000);
-  const claims = { iss: teamId, iat: now };
-
-  const encodedHeader = base64url(JSON.stringify(header));
-  const encodedClaims = base64url(JSON.stringify(claims));
-  const signingInput = `${encodedHeader}.${encodedClaims}`;
-
-  // Import private key
-  const pemBody = privateKeyPem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\s/g, "");
-  const keyData = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0));
-
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    keyData,
-    { name: "ECDSA", namedCurve: "P-256" },
-    false,
-    ["sign"],
-  );
-
-  // Sign
-  const signatureBuffer = await crypto.subtle.sign(
-    { name: "ECDSA", hash: "SHA-256" },
-    key,
-    new TextEncoder().encode(signingInput),
-  );
-
-  // Convert DER signature to raw r||s format for JWT
-  const signature = derToRaw(new Uint8Array(signatureBuffer));
-  const encodedSignature = base64url(signature);
-
-  return `${signingInput}.${encodedSignature}`;
-}
-
-function base64url(input: string | Uint8Array): string {
-  let b64: string;
-  if (typeof input === "string") {
-    b64 = btoa(input);
-  } else {
-    b64 = btoa(String.fromCharCode(...input));
-  }
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-/**
- * Convert DER-encoded ECDSA signature to raw r||s (64 bytes).
- */
-function derToRaw(der: Uint8Array): Uint8Array {
-  // DER: 0x30 <len> 0x02 <rlen> <r> 0x02 <slen> <s>
-  const raw = new Uint8Array(64);
-  let offset = 2; // skip 0x30 <len>
-
-  // Read r
-  offset += 1; // skip 0x02
-  const rLen = der[offset++];
-  const rStart = rLen > 32 ? offset + (rLen - 32) : offset;
-  const rDest = rLen < 32 ? 32 - rLen : 0;
-  raw.set(der.slice(rStart, offset + rLen), rDest);
-  offset += rLen;
-
-  // Read s
-  offset += 1; // skip 0x02
-  const sLen = der[offset++];
-  const sStart = sLen > 32 ? offset + (sLen - 32) : offset;
-  const sDest = sLen < 32 ? 64 - sLen : 32;
-  raw.set(der.slice(sStart, offset + sLen), sDest);
-
-  return raw;
 }

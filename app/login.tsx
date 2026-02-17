@@ -9,8 +9,8 @@ import { impactMedium } from "@/utils/haptics";
 const waveHand = require("../assets/wave-hand.png");
 
 const STEPS = [
-  { icon: "radio-outline" as const, text: "Discover people around you" },
-  { icon: "hand-left-outline" as const, text: "Wave at someone you find interesting" },
+  { icon: "radio-outline" as const, text: "Discover people nearby" },
+  { icon: "hand-left-outline" as const, text: "Send a wave to connect" },
   { icon: "people-outline" as const, text: "Match when they wave back" },
 ];
 

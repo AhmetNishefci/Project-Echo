@@ -66,43 +66,56 @@ export async function registerForPushNotifications(): Promise<string | null> {
     return null;
   }
 
-  try {
-    // Get the Expo Push Token (wraps APNs/FCM, used with Expo Push API)
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: "80494bfb-f7d5-4924-b53c-c1721a95cddb",
-    });
-    const pushToken = tokenData.data; // Format: ExponentPushToken[xxx]
-    const platform = Platform.OS; // 'ios' or 'android'
+  // Retry logic — on first install the APS entitlement may not be ready yet
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY = 2000; // ms
 
-    logger.echo("Got device push token", {
-      token: pushToken.substring(0, 12) + "...",
-      platform,
-    });
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // Get the Expo Push Token (wraps APNs/FCM, used with Expo Push API)
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: "80494bfb-f7d5-4924-b53c-c1721a95cddb",
+      });
+      const pushToken = tokenData.data; // Format: ExponentPushToken[xxx]
+      const platform = Platform.OS; // 'ios' or 'android'
 
-    // Upsert to Supabase
-    const { error } = await supabase
-      .from("push_tokens")
-      .upsert(
-        {
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          token: pushToken,
-          platform,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,platform" },
-      );
+      logger.echo("Got device push token", {
+        token: pushToken.substring(0, 12) + "...",
+        platform,
+      });
 
-    if (error) {
-      logger.error("Failed to save push token to Supabase", error);
-    } else {
-      logger.echo("Push token registered with Supabase");
+      // Upsert to Supabase
+      const { error } = await supabase
+        .from("push_tokens")
+        .upsert(
+          {
+            user_id: (await supabase.auth.getUser()).data.user?.id,
+            token: pushToken,
+            platform,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,platform" },
+        );
+
+      if (error) {
+        logger.error("Failed to save push token to Supabase", error);
+      } else {
+        logger.echo("Push token registered with Supabase");
+      }
+
+      return pushToken;
+    } catch (err: any) {
+      const isApsError = err?.message?.includes("aps-environment");
+      if (isApsError && attempt < MAX_RETRIES) {
+        logger.echo(`Push token attempt ${attempt} failed (aps-environment), retrying in ${RETRY_DELAY}ms...`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAY));
+        continue;
+      }
+      logger.error("Failed to get push token", err);
+      return null;
     }
-
-    return pushToken;
-  } catch (err) {
-    logger.error("Failed to get push token", err);
-    return null;
   }
+  return null;
 }
 
 /**

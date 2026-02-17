@@ -20,7 +20,7 @@ export async function fetchInstagramHandle(): Promise<string | null> {
       .from("profiles")
       .select("instagram_handle")
       .eq("id", user.id)
-      .single();
+      .maybeSingle();
 
     if (error) {
       logger.error("fetchInstagramHandle error", error);

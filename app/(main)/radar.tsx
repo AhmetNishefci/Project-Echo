@@ -26,6 +26,7 @@ import { echoBleManager } from "@/services/ble/bleManager";
 import { sendWave, undoWave } from "@/services/echo/waves";
 import { PermissionGate } from "@/components/PermissionGate";
 import { BleStatusBar } from "@/components/StatusBar";
+import { Toast } from "@/components/Toast";
 import type { NearbyPeer, DistanceZone } from "@/types";
 import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
 import { logger } from "@/utils/logger";
@@ -56,11 +57,18 @@ export default function RadarScreen() {
     error,
   } = useBleStore();
   const { currentToken, isRotating } = useEchoStore();
-  const incomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
+  const rawIncomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
+
+  // Only count incoming waves from wavers still visible on the radar.
+  // After the waver's token rotates, they appear as a new peer and the
+  // old token is no longer in nearbyPeers, so the banner should clear.
+  const incomingWaveTokens = useMemo(
+    () => rawIncomingWaveTokens.filter((t) => nearbyPeers.has(t)),
+    [rawIncomingWaveTokens, nearbyPeers],
+  );
   const [isStarting, setIsStarting] = useState(false);
   const startingRef = useRef(false);
   const [toast, setToast] = useState<string | null>(null);
-  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sections = useMemo<ZoneSection[]>(() => {
     const peers = Array.from(nearbyPeers.values());
@@ -95,19 +103,6 @@ export default function RadarScreen() {
     () => Array.from(nearbyPeers.values()).length,
     [nearbyPeers],
   );
-
-  const showToast = useCallback((message: string, durationMs = 4000) => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    setToast(message);
-    toastTimerRef.current = setTimeout(() => setToast(null), durationMs);
-  }, []);
-
-  // Cleanup toast timer on unmount
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
 
   const handleStartDiscovery = useCallback(async () => {
     if (startingRef.current) return;
@@ -175,29 +170,31 @@ export default function RadarScreen() {
     } else if (result === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken);
-      showToast("You've already matched with this person! 🤝", 3000);
+      setToast("You've already matched with this person!");
     } else if (result === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
       Alert.alert("Slow Down", "You're waving too fast. Wait a moment and try again.");
     } else if (result === "match") {
+      store.removePendingWave(peer.ephemeralToken);
+      store.addMatchedToken(peer.ephemeralToken);
       notifySuccess();
       logger.echo("Match from wave!");
     } else if (result === "pending") {
-      showToast("Wave sent! You can undo anytime before it expires.");
+      setToast("Wave sent! You can undo anytime before it expires.");
     }
-  }, [showToast]);
+  }, []);
 
   const handleUndo = useCallback(async (targetToken: string) => {
     impactLight();
     const success = await undoWave(targetToken);
     if (success) {
-      showToast("Wave undone", 2000);
+      setToast("Wave undone");
     } else {
       notifyError();
       Alert.alert("Undo Failed", "Could not undo the wave. It may have already been matched or expired.");
     }
-  }, [showToast]);
+  }, []);
 
   const handleInvite = useCallback(async () => {
     try {
@@ -386,17 +383,7 @@ export default function RadarScreen() {
         }
       />
 
-      {/* Toast overlay */}
-      {toast && (
-        <Animated.View
-          key={toast}
-          entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(200)}
-          className="absolute bottom-28 left-6 right-6 bg-echo-surface border border-echo-muted rounded-2xl py-3 px-4"
-        >
-          <Text className="text-white text-sm text-center">{toast}</Text>
-        </Animated.View>
-      )}
+      <Toast message={toast} onDismiss={() => setToast(null)} />
     </View>
   );
 }

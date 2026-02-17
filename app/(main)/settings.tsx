@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator, Modal, Animated, Linking } from "react-native";
+import { useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator, Modal, Linking } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { useBleStore } from "@/stores/bleStore";
@@ -9,17 +9,9 @@ import { saveInstagramHandle } from "@/services/profile";
 import { supabase } from "@/services/supabase";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
+import { Toast } from "@/components/Toast";
 
 export default function SettingsScreen() {
-  const {
-    adapterState,
-    isScanning,
-    isAdvertising,
-    permissionStatus,
-    nearbyPeers,
-    error,
-  } = useBleStore();
-  const { currentToken, tokenExpiresAt, matches } = useEchoStore();
   const { userId, instagramHandle, setInstagramHandle } = useAuthStore();
   const router = useRouter();
 
@@ -28,10 +20,6 @@ export default function SettingsScreen() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-
-  const tokenExpiry = tokenExpiresAt
-    ? new Date(tokenExpiresAt).toLocaleTimeString()
-    : "N/A";
 
   const handleSaveHandle = async () => {
     const cleaned = handleInput.trim().toLowerCase().replace(/^@/, "");
@@ -125,8 +113,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* Toast notification */}
-      <Toast message={toast} onDone={() => setToast(null)} />
+      <Toast message={toast} onDismiss={() => setToast(null)} position="top" />
 
     <ScrollView className="flex-1 bg-echo-bg pt-16 px-4">
       {/* Header */}
@@ -195,26 +182,6 @@ export default function SettingsScreen() {
             </Text>
           </TouchableOpacity>
         )}
-      </Section>
-
-      {/* Bluetooth */}
-      <Section title="Bluetooth">
-        <InfoRow label="Status" value={adapterState} />
-        <InfoRow label="Scanning" value={isScanning ? "Active" : "Off"} />
-        <InfoRow label="Broadcasting" value={isAdvertising ? "Active" : "Off"} />
-        <InfoRow label="Permission" value={permissionStatus} />
-        <InfoRow label="Nearby" value={String(nearbyPeers.size)} />
-        {error && <InfoRow label="Error" value={error} isError />}
-      </Section>
-
-      {/* Echo Protocol */}
-      <Section title="Wave Protocol">
-        <InfoRow
-          label="Token"
-          value={currentToken ? currentToken.substring(0, 12) + "..." : "None"}
-        />
-        <InfoRow label="Expires" value={tokenExpiry} />
-        <InfoRow label="Matches" value={String(matches.length)} />
       </Section>
 
       {/* Actions */}
@@ -346,30 +313,3 @@ function InfoRow({
   );
 }
 
-/** Animated toast that auto-dismisses after 2s */
-function Toast({ message, onDone }: { message: string | null; onDone: () => void }) {
-  const [opacity] = useState(() => new Animated.Value(0));
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
-
-  useEffect(() => {
-    if (message) {
-      Animated.sequence([
-        Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.delay(1800),
-        Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start(() => onDoneRef.current());
-    }
-  }, [message, opacity]);
-
-  if (!message) return null;
-
-  return (
-    <Animated.View
-      style={{ opacity }}
-      className="absolute top-16 left-6 right-6 z-50 bg-echo-primary rounded-xl py-3 px-4 items-center"
-    >
-      <Text className="text-white text-sm font-semibold">{message}</Text>
-    </Animated.View>
-  );
-}

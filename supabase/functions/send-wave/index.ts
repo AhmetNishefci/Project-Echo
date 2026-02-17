@@ -124,13 +124,6 @@ serve(async (req: Request) => {
         } catch (err) {
           console.error("wave_undo broadcast failed:", err);
         }
-
-        // Send push notification for wave undo
-        await sendExpoPush(adminClient, tokenRow.user_id, {
-          title: "Wave",
-          body: "A nearby wave was undone",
-          data: { type: "wave_undo" },
-        });
       }
 
       return new Response(JSON.stringify({ status: "undone" }), {

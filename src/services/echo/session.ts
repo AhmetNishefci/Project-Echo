@@ -4,8 +4,8 @@ import { logger } from "@/utils/logger";
 
 /**
  * Get a fresh Supabase session, refreshing the JWT if it's expired or about to expire.
- * If the refresh token is also expired (stale anonymous session), automatically
- * re-authenticates anonymously so edge function calls never get stuck on Invalid JWT.
+ * If the refresh token is also expired, returns null — the caller should
+ * treat this as "unauthenticated" and the app will redirect to login.
  */
 export async function getFreshSession(): Promise<Session | null> {
   let {
@@ -22,22 +22,8 @@ export async function getFreshSession(): Promise<Session | null> {
       await supabase.auth.refreshSession();
 
     if (refreshErr || !refreshed.session) {
-      logger.error("Session refresh failed, re-authenticating anonymously...", refreshErr);
-
-      // Refresh token is dead — sign out to clear stale session, then re-auth
-      await supabase.auth.signOut();
-      const { data: newAuth, error: newErr } =
-        await supabase.auth.signInAnonymously();
-
-      if (newErr || !newAuth.session) {
-        logger.error("Anonymous re-auth failed", newErr);
-        return null;
-      }
-
-      logger.echo("Re-authenticated anonymously", {
-        userId: newAuth.session.user.id,
-      });
-      return newAuth.session;
+      logger.error("Session refresh failed — user must re-authenticate", refreshErr);
+      return null;
     }
 
     session = refreshed.session;

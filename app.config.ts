@@ -53,6 +53,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     "expo-router",
+    "expo-web-browser",
+    [
+      "@react-native-google-signin/google-signin",
+      {
+        iosUrlScheme: process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME || "",
+      },
+    ],
     [
       "react-native-ble-plx",
       {

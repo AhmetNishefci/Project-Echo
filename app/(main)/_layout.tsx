@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Text } from "react-native";
 import { Tabs, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { useEchoStore } from "@/stores/echoStore";
 import { useBleLifecycle } from "@/hooks/useBleLifecycle";
@@ -72,8 +72,8 @@ export default function MainLayout() {
         name="radar"
         options={{
           title: "Radar",
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 22, color }}>📡</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="radio-outline" size={size} color={color} />
           ),
         }}
       />
@@ -81,8 +81,8 @@ export default function MainLayout() {
         name="history"
         options={{
           title: "Matches",
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 22, color }}>💜</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="heart-outline" size={size} color={color} />
           ),
           tabBarBadge: unseenCount > 0 ? unseenCount : undefined,
           tabBarBadgeStyle: {
@@ -98,8 +98,8 @@ export default function MainLayout() {
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color }) => (
-            <Text style={{ fontSize: 22, color }}>⚙️</Text>
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="settings-outline" size={size} color={color} />
           ),
         }}
       />

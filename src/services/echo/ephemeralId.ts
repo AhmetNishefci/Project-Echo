@@ -71,56 +71,14 @@ async function attemptFetchToken(): Promise<TokenResponse | null> {
         details = await (error as any).context.text();
       }
     } catch {
-      // context may already be consumed; fall back to error message
       details = (error as any)?.message ?? "";
-    }
-
-    // Check for Invalid JWT in the error context OR in the error message/name
-    const errorStr = details + " " + String(error);
-    const isJwtError =
-      errorStr.includes("Invalid JWT") ||
-      errorStr.includes("401") ||
-      errorStr.includes("Unauthorized");
-
-    if (isJwtError) {
-      logger.echo("Server rejected JWT — forcing re-auth");
-      await supabase.auth.signOut();
-      const { data: newAuth, error: reAuthErr } =
-        await supabase.auth.signInAnonymously();
-      if (!reAuthErr && newAuth.session) {
-        logger.echo("Re-authenticated anonymously", {
-          userId: newAuth.session.user.id,
-        });
-        // Retry immediately with the new session
-        const retryResult = await supabase.functions.invoke(
-          "assign-ephemeral-id",
-          {
-            headers: {
-              Authorization: `Bearer ${newAuth.session.access_token}`,
-            },
-          },
-        );
-        if (!retryResult.error) {
-          const result = retryResult.data as TokenResponse;
-          const expiresAtMs = new Date(result.expires_at).getTime();
-          useEchoStore.getState().setToken(result.token, expiresAtMs);
-          logger.echo("New ephemeral token assigned after re-auth", {
-            token: result.token.substring(0, 8),
-            expiresAt: result.expires_at,
-          });
-          return result;
-        }
-        logger.error("Retry after re-auth also failed", retryResult.error);
-      } else {
-        logger.error("Anonymous re-auth failed", reAuthErr);
-      }
     }
 
     logger.error(
       "Failed to fetch ephemeral token: " + (details || "no details"),
       error,
     );
-    throw error; // Throw so retry loop catches it
+    throw error;
   }
 
   const result = data as TokenResponse;

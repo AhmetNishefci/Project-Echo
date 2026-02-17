@@ -1,44 +1,43 @@
 import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert, TextInput, ActivityIndicator, Modal, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, Linking, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
+import { signOut } from "@/services/auth";
 import { saveInstagramHandle } from "@/services/profile";
 import { supabase } from "@/services/supabase";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
-import { Toast } from "@/components/Toast";
 
 export default function SettingsScreen() {
   const { userId, instagramHandle, setInstagramHandle } = useAuthStore();
   const router = useRouter();
 
+  const [deleting, setDeleting] = useState(false);
   const [editingHandle, setEditingHandle] = useState(false);
   const [handleInput, setHandleInput] = useState(instagramHandle ?? "");
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [savingHandle, setSavingHandle] = useState(false);
 
   const handleSaveHandle = async () => {
-    const cleaned = handleInput.trim().toLowerCase().replace(/^@/, "");
-    if (!cleaned || !/^(?=.*[a-z0-9])[a-z0-9._]{1,30}$/.test(cleaned)) {
-      Alert.alert("Invalid Username", "Enter a valid Instagram username.");
-      return;
-    }
+    const trimmed = handleInput.trim().replace(/^@/, "");
+    if (!trimmed) return;
 
-    setSaving(true);
-    const saved = await saveInstagramHandle(cleaned);
-    setSaving(false);
+    impactLight();
+    setSavingHandle(true);
+
+    const saved = await saveInstagramHandle(trimmed);
+    setSavingHandle(false);
 
     if (saved) {
-      impactLight();
       setInstagramHandle(saved);
       setEditingHandle(false);
-      setToast("Username updated!");
     } else {
-      Alert.alert("Error", "Could not save. Username may already be taken.");
+      Alert.alert(
+        "Invalid Username",
+        "Please enter a valid Instagram username (letters, numbers, dots, and underscores).",
+      );
     }
   };
 
@@ -113,8 +112,6 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      <Toast message={toast} onDismiss={() => setToast(null)} position="top" />
-
     <ScrollView className="flex-1 bg-echo-bg pt-16 px-4">
       {/* Header */}
       <View className="mb-6">
@@ -124,43 +121,47 @@ export default function SettingsScreen() {
       {/* Account */}
       <Section title="Account">
         <InfoRow label="User ID" value={userId ? userId.substring(0, 12) + "..." : "Not authenticated"} />
-        <InfoRow label="Mode" value="Anonymous" />
+        <InfoRow label="Signed in via" value="Google" />
       </Section>
 
       {/* Instagram */}
       <Section title="Instagram">
         {editingHandle ? (
           <View>
-            <View className="flex-row items-center py-1.5">
-              <Text className="text-echo-muted text-sm mr-1">@</Text>
+            <View className="bg-echo-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
+              <Text className="text-echo-muted text-sm" style={{ lineHeight: 18 }}>@</Text>
               <TextInput
-                className="flex-1 text-white text-sm"
                 value={handleInput}
                 onChangeText={setHandleInput}
                 placeholder="username"
                 placeholderTextColor="#555"
                 autoCapitalize="none"
                 autoCorrect={false}
-                maxLength={30}
+                autoComplete="off"
+                className="flex-1 text-white text-sm ml-1"
+                style={{ lineHeight: 18, paddingVertical: 0 }}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleSaveHandle}
               />
             </View>
-            <View className="flex-row justify-end gap-3 mt-2">
+            <View className="flex-row justify-end mt-3">
               <TouchableOpacity
                 onPress={() => {
                   setEditingHandle(false);
                   setHandleInput(instagramHandle ?? "");
                 }}
-                className="py-2 px-4"
+                className="rounded-lg px-4 py-2 mr-2"
               >
                 <Text className="text-echo-muted text-sm">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveHandle}
-                disabled={saving}
-                className="py-2 px-4 bg-echo-primary rounded-lg"
+                disabled={savingHandle || !handleInput.trim()}
+                className="bg-echo-primary rounded-lg px-5 py-2"
               >
-                {saving ? (
-                  <ActivityIndicator size="small" color="white" />
+                {savingHandle ? (
+                  <ActivityIndicator color="white" size="small" />
                 ) : (
                   <Text className="text-white text-sm font-semibold">Save</Text>
                 )}
@@ -168,20 +169,21 @@ export default function SettingsScreen() {
             </View>
           </View>
         ) : (
-          <TouchableOpacity
-            onPress={() => {
-              setHandleInput(instagramHandle ?? "");
-              setEditingHandle(true);
-            }}
-            className="flex-row justify-between items-center py-1.5"
-          >
-            <Text className="text-echo-muted text-sm">Handle</Text>
-            <Text className="text-white text-sm">
-              {instagramHandle ? `@${instagramHandle}` : "Not set"}{" "}
-              <Text className="text-echo-primary">Edit</Text>
-            </Text>
+          <TouchableOpacity onPress={() => setEditingHandle(true)} activeOpacity={0.7}>
+            <View className="flex-row justify-between items-center py-1.5">
+              <Text className="text-echo-muted text-sm">Username</Text>
+              <View className="flex-row items-center">
+                <Text className="text-white text-sm font-mono mr-2">
+                  {instagramHandle ? `@${instagramHandle}` : "Not set"}
+                </Text>
+                <Text className="text-echo-primary text-xs">Edit</Text>
+              </View>
+            </View>
           </TouchableOpacity>
         )}
+        <Text className="text-echo-muted text-xs mt-2 leading-4">
+          Shown to you and your match after a mutual wave.
+        </Text>
       </Section>
 
       {/* Actions */}
@@ -249,6 +251,28 @@ export default function SettingsScreen() {
       {/* Danger zone */}
       <Section title="Account Actions">
         <TouchableOpacity
+          onPress={() => {
+            Alert.alert(
+              "Sign Out",
+              "You'll need to sign in again to use Wave.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Sign Out",
+                  onPress: async () => {
+                    await echoBleManager.stop();
+                    await signOut();
+                    router.replace("/");
+                  },
+                },
+              ],
+            );
+          }}
+          className="py-3"
+        >
+          <Text className="text-white text-sm">Sign Out</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={handleDeleteAccount}
           className="py-3"
         >
@@ -263,9 +287,6 @@ export default function SettingsScreen() {
       <View className="items-center mt-4 mb-12">
         <Text className="text-echo-muted text-xs">
           Wave v{Constants.expoConfig?.version ?? "1.0.0"}
-        </Text>
-        <Text className="text-echo-muted text-xs mt-1">
-          Built with 💜 using BLE
         </Text>
       </View>
     </ScrollView>
@@ -312,4 +333,3 @@ function InfoRow({
     </View>
   );
 }
-

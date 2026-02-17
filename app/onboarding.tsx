@@ -1,49 +1,41 @@
 import { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  Alert,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuthStore } from "@/stores/authStore";
 import { saveInstagramHandle } from "@/services/profile";
-import { impactLight } from "@/utils/haptics";
+import { useAuthStore } from "@/stores/authStore";
+import { impactMedium } from "@/utils/haptics";
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const setInstagramHandle = useAuthStore((s) => s.setInstagramHandle);
-
+  const insets = useSafeAreaInsets();
   const [handle, setHandle] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  const cleanHandle = handle.trim().toLowerCase().replace(/^@/, "");
-  const isValid = /^(?=.*[a-z0-9])[a-z0-9._]{1,30}$/.test(cleanHandle) && cleanHandle.length >= 1;
-
-  const handleSubmit = async () => {
-    if (!isValid) {
-      setError("Enter a valid Instagram username");
+  const handleContinue = async () => {
+    const trimmed = handle.trim().replace(/^@/, "");
+    if (!trimmed) {
+      Alert.alert("Required", "Please enter your Instagram username.");
       return;
     }
 
+    impactMedium();
     setSaving(true);
-    setError(null);
 
-    const saved = await saveInstagramHandle(cleanHandle);
+    const saved = await saveInstagramHandle(trimmed);
+    setSaving(false);
 
-    if (saved) {
-      impactLight();
-      setInstagramHandle(saved);
-      router.replace("/(main)/radar");
-    } else {
-      setSaving(false);
-      setError("Could not save. Username may already be taken.");
+    if (!saved) {
+      Alert.alert(
+        "Invalid Username",
+        "Please enter a valid Instagram username (letters, numbers, dots, and underscores).",
+      );
+      return;
     }
+
+    useAuthStore.getState().setInstagramHandle(saved);
+    router.replace("/(main)/radar");
   };
 
   return (
@@ -51,73 +43,58 @@ export default function OnboardingScreen() {
       className="flex-1 bg-echo-bg"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View className="flex-1 justify-center px-8">
-        {/* Logo / Header */}
-        <View className="items-center mb-12">
-          <View className="w-20 h-20 rounded-full bg-echo-primary/20 items-center justify-center mb-6">
-            <Text className="text-4xl">📸</Text>
-          </View>
-          <Text className="text-3xl font-bold text-white mb-2">
-            Almost there!
-          </Text>
-          <Text className="text-echo-muted text-center text-base leading-6">
-            Add your Instagram so matches{"\n"}can connect with you
-          </Text>
+      <View
+        className="flex-1 items-center justify-center px-8"
+        style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+      >
+        <View className="w-12 h-12 rounded-full bg-echo-surface items-center justify-center mb-6">
+          <Ionicons name="logo-instagram" size={24} color="#6c63ff" />
         </View>
 
-        {/* Input */}
-        <View className="mb-6">
-          <View className="flex-row items-center bg-echo-surface rounded-2xl px-4 py-3">
-            <Text className="text-echo-muted text-lg mr-1">@</Text>
-            <TextInput
-              className="flex-1 text-white text-lg"
-              placeholder="username"
-              placeholderTextColor="#555"
-              value={handle}
-              onChangeText={(text) => {
-                setHandle(text);
-                setError(null);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              autoComplete="off"
-              maxLength={31} // 30 + possible @
-              returnKeyType="done"
-              onSubmitEditing={handleSubmit}
-            />
-          </View>
+        <Text className="text-2xl font-bold text-white mb-2">
+          Add your Instagram
+        </Text>
+        <Text className="text-echo-muted text-sm text-center mb-8 leading-5">
+          When you match with someone, you'll both see each other's Instagram username so you can connect.
+        </Text>
 
-          {error && (
-            <Text className="text-echo-danger text-sm mt-2 ml-1">
-              {error}
-            </Text>
-          )}
-
-          <Text className="text-echo-muted text-xs mt-3 ml-1">
-            Your handle is only revealed to people you match with.
-          </Text>
+        <View className="w-full bg-echo-surface rounded-2xl px-4 flex-row items-center mb-4" style={{ height: 52 }}>
+          <Text className="text-echo-muted text-base" style={{ lineHeight: 20 }}>@</Text>
+          <TextInput
+            value={handle}
+            onChangeText={setHandle}
+            placeholder="username"
+            placeholderTextColor="#555"
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            className="flex-1 text-white text-base ml-1"
+            style={{ lineHeight: 20, paddingVertical: 0 }}
+            returnKeyType="done"
+            onSubmitEditing={handleContinue}
+          />
         </View>
 
-        {/* Submit */}
         <TouchableOpacity
-          onPress={handleSubmit}
-          disabled={!isValid || saving}
-          className={`py-4 rounded-2xl items-center ${
-            isValid && !saving ? "bg-echo-primary" : "bg-echo-surface"
+          onPress={handleContinue}
+          disabled={saving || !handle.trim()}
+          className={`w-full rounded-2xl py-4 items-center justify-center ${
+            handle.trim() ? "bg-echo-primary" : "bg-echo-surface"
           }`}
+          activeOpacity={0.8}
         >
           {saving ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color="white" size="small" />
           ) : (
-            <Text
-              className={`text-lg font-semibold ${
-                isValid ? "text-white" : "text-echo-muted"
-              }`}
-            >
+            <Text className={`text-base font-semibold ${handle.trim() ? "text-white" : "text-echo-muted"}`}>
               Continue
             </Text>
           )}
         </TouchableOpacity>
+
+        <Text className="text-echo-muted text-xs text-center mt-4 leading-5">
+          Your username is only revealed after a mutual match.
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );

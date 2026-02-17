@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import Constants from "expo-constants";
 import { supabase } from "./supabase";
 import { logger } from "@/utils/logger";
 
@@ -74,7 +75,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
     try {
       // Get the Expo Push Token (wraps APNs/FCM, used with Expo Push API)
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: "80494bfb-f7d5-4924-b53c-c1721a95cddb",
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
       });
       const pushToken = tokenData.data; // Format: ExponentPushToken[xxx]
       const platform = Platform.OS; // 'ios' or 'android'

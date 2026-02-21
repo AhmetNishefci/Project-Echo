@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Share,
   RefreshControl,
+  Modal,
+  Pressable,
 } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
@@ -33,6 +35,7 @@ import type { NearbyPeer, DistanceZone } from "@/types";
 import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
 import { logger } from "@/utils/logger";
 import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
+import { useNoteResolver } from "@/hooks/useNoteResolver";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
@@ -87,6 +90,10 @@ export default function RadarScreen() {
   const startingRef = useRef(false);
   const [toast, setToast] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPeer, setSelectedPeer] = useState<NearbyPeer | null>(null);
+
+  // Resolve peer notes from server
+  useNoteResolver(isDiscoveryActive);
 
   const handleRefresh = useCallback(async () => {
     if (!isDiscoveryActive) return;
@@ -236,7 +243,7 @@ export default function RadarScreen() {
 
   const renderPeer = useCallback(
     ({ item }: { item: NearbyPeer }) => (
-      <PeerRow peer={item} onWave={handleWave} onUndo={handleUndo} />
+      <PeerRow peer={item} onWave={handleWave} onUndo={handleUndo} onPress={setSelectedPeer} />
     ),
     [handleWave, handleUndo],
   );
@@ -418,6 +425,11 @@ export default function RadarScreen() {
         }
       />
 
+      {/* Peer detail modal */}
+      {selectedPeer && (
+        <PeerDetailModal peer={selectedPeer} onClose={() => setSelectedPeer(null)} />
+      )}
+
       <Toast message={toast} onDismiss={() => setToast(null)} />
     </View>
   );
@@ -489,10 +501,12 @@ function PeerRow({
   peer,
   onWave,
   onUndo,
+  onPress,
 }: {
   peer: NearbyPeer;
   onWave: (p: NearbyPeer) => void;
   onUndo: (token: string) => void;
+  onPress: (p: NearbyPeer) => void;
 }) {
   const wavePending = useEchoStore(
     (s) => s.pendingWaves.get(peer.ephemeralToken) ?? null,
@@ -532,22 +546,27 @@ function PeerRow({
 
   return (
     <View className="py-3 px-4 mb-2 rounded-xl flex-row items-center bg-echo-surface">
-      {/* Avatar */}
-      <View
-        className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${avatar.bg} border-2 ${avatar.ring}`}
-      >
-        <Text className="text-lg">{avatar.emoji}</Text>
-      </View>
-
-      {/* Info */}
-      <View className="flex-1">
-        <Text className="text-white text-base">Someone</Text>
-        <View className="flex-row items-center">
-          <Text className="text-echo-muted text-xs">{signal}</Text>
-          <Text className="text-echo-muted text-xs mx-1">·</Text>
-          <Text className="text-echo-muted text-xs">{freshness}</Text>
+      {/* Tappable area: avatar + info */}
+      <Pressable onPress={() => onPress(peer)} className="flex-row items-center flex-1 mr-3">
+        {/* Avatar */}
+        <View
+          className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${avatar.bg} border-2 ${avatar.ring}`}
+        >
+          <Text className="text-lg">{avatar.emoji}</Text>
         </View>
-      </View>
+
+        {/* Info */}
+        <View className="flex-1">
+          <Text className="text-white text-base" numberOfLines={1}>
+            {peer.note || "Someone"}
+          </Text>
+          <View className="flex-row items-center">
+            <Text className="text-echo-muted text-xs">{signal}</Text>
+            <Text className="text-echo-muted text-xs mx-1">·</Text>
+            <Text className="text-echo-muted text-xs">{freshness}</Text>
+          </View>
+        </View>
+      </Pressable>
 
       {/* Wave / Undo / Matched */}
       {isAlreadyMatched ? (
@@ -582,5 +601,66 @@ function PeerRow({
         </TouchableOpacity>
       )}
     </View>
+  );
+}
+
+/* ─── Peer Detail Modal ────────────────────────────────────── */
+
+function PeerDetailModal({
+  peer,
+  onClose,
+}: {
+  peer: NearbyPeer;
+  onClose: () => void;
+}) {
+  const avatar = getAvatarForToken(peer.ephemeralToken);
+  const signal = getSignalLabel(peer.rssi);
+  const zone = getDistanceZone(peer.rssi);
+  const zoneLabel = ZONE_CONFIG[zone].label;
+  const zoneColor = ZONE_CONFIG[zone].color;
+  const freshness = getTimeSince(peer.lastSeen);
+
+  return (
+    <Modal transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable onPress={onClose} className="flex-1 bg-black/60 justify-end">
+        <Pressable onPress={(e) => e.stopPropagation()} className="bg-echo-surface rounded-t-3xl px-6 pt-6 pb-10">
+          {/* Handle bar */}
+          <View className="w-10 h-1 rounded-full bg-echo-muted/40 self-center mb-5" />
+
+          {/* Avatar + Note */}
+          <View className="items-center mb-4">
+            <View
+              className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${avatar.bg} border-2 ${avatar.ring}`}
+            >
+              <Text className="text-2xl">{avatar.emoji}</Text>
+            </View>
+            <Text className="text-white text-lg font-semibold text-center px-4">
+              {peer.note || "Someone"}
+            </Text>
+          </View>
+
+          {/* Details */}
+          <View className="bg-echo-bg rounded-xl px-4 py-3 mb-4">
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-echo-muted text-sm">Distance</Text>
+              <Text className={`text-sm font-medium ${zoneColor}`}>{zoneLabel}</Text>
+            </View>
+            <View className="flex-row justify-between items-center mb-2">
+              <Text className="text-echo-muted text-sm">Signal</Text>
+              <Text className="text-white text-sm">{signal}</Text>
+            </View>
+            <View className="flex-row justify-between items-center">
+              <Text className="text-echo-muted text-sm">Last seen</Text>
+              <Text className="text-white text-sm">{freshness}</Text>
+            </View>
+          </View>
+
+          {/* Close */}
+          <TouchableOpacity onPress={onClose} className="bg-echo-bg rounded-xl py-3 items-center">
+            <Text className="text-echo-muted text-sm font-semibold">Close</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }

@@ -6,6 +6,7 @@ export interface UserProfile {
   instagramHandle: string | null;
   gender: Gender | null;
   genderPreference: GenderPreference | null;
+  note: string | null;
 }
 
 /**
@@ -24,7 +25,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("instagram_handle, gender, gender_preference")
+      .select("instagram_handle, gender, gender_preference, note")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -37,6 +38,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
       instagramHandle: data?.instagram_handle ?? null,
       gender: data?.gender ?? null,
       genderPreference: data?.gender_preference ?? null,
+      note: data?.note ?? null,
     };
   } catch (err) {
     logger.error("fetchProfile exception", err);
@@ -171,5 +173,56 @@ export async function saveInstagramHandle(
   } catch (err) {
     logger.error("saveInstagramHandle exception", err);
     return null;
+  }
+}
+
+/**
+ * Save/update the user's note (max 40 chars).
+ * Pass null or empty string to clear.
+ */
+export async function saveNote(rawNote: string | null): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("saveNote: no user");
+      return false;
+    }
+
+    const note = rawNote?.trim() || null;
+
+    if (note && note.length > 40) {
+      logger.error("saveNote: exceeds 40 chars", { length: note.length });
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ note })
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("saveNote error", error);
+      return false;
+    }
+
+    // Also update the active ephemeral token so nearby users see the change
+    // immediately (within the next 5s polling tick) instead of waiting for
+    // the next token rotation (~15 min).
+    const { error: rpcError } = await supabase.rpc("update_active_note", {
+      p_note: note,
+    });
+    if (rpcError) {
+      // Non-fatal: profile is saved, token will catch up on next rotation
+      logger.error("update_active_note RPC error (non-fatal)", rpcError);
+    }
+
+    logger.auth("Note saved", { note });
+    return true;
+  } catch (err) {
+    logger.error("saveNote exception", err);
+    return false;
   }
 }

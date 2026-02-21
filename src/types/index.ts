@@ -20,6 +20,7 @@ export interface NearbyPeer {
   lastSeen: number;
   discoveredAt: number;
   gender: Gender | null;
+  note: string | null;
 }
 
 export type DistanceZone = "HERE" | "CLOSE" | "NEARBY";

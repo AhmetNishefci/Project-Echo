@@ -1,41 +1,45 @@
 import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { saveInstagramHandle } from "@/services/profile";
+import { saveNote } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium } from "@/utils/haptics";
 
-export default function OnboardingScreen() {
+const MAX_NOTE_LENGTH = 40;
+
+export default function NoteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [handle, setHandle] = useState("");
+  const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleContinue = async () => {
-    const trimmed = handle.trim().replace(/^@/, "");
+    const trimmed = note.trim();
     if (!trimmed) {
-      Alert.alert("Required", "Please enter your Instagram username.");
+      // Treat empty as skip
+      router.replace("/(main)/radar");
       return;
     }
 
     impactMedium();
     setSaving(true);
 
-    const saved = await saveInstagramHandle(trimmed);
+    const success = await saveNote(trimmed);
     setSaving(false);
 
-    if (!saved) {
+    if (!success) {
       Alert.alert(
-        "Invalid Username",
-        "Please enter a valid Instagram username (letters, numbers, dots, and underscores).",
+        "Couldn't Save",
+        "Your note couldn't be saved. You can try again in settings.",
+        [{ text: "Continue", onPress: () => router.replace("/(main)/radar") }],
       );
       return;
     }
 
-    useAuthStore.getState().setInstagramHandle(saved);
-    router.replace("/note");
+    useAuthStore.getState().setNote(trimmed);
+    router.replace("/(main)/radar");
   };
 
   return (
@@ -48,52 +52,57 @@ export default function OnboardingScreen() {
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
         <View className="w-12 h-12 rounded-full bg-echo-surface items-center justify-center mb-6">
-          <Ionicons name="logo-instagram" size={24} color="#6c63ff" />
+          <Ionicons name="pencil-outline" size={24} color="#6c63ff" />
         </View>
 
         <Text className="text-2xl font-bold text-white mb-2">
-          Add your Instagram
+          Add a Note
         </Text>
         <Text className="text-echo-muted text-sm text-center mb-8 leading-5">
-          When you match with someone, you'll both see each other's Instagram username so you can connect.
+          Help people nearby recognize you. Something like your name, what you're wearing, or where you are.
         </Text>
 
-        <View className="w-full bg-echo-surface rounded-2xl px-4 flex-row items-center mb-4" style={{ height: 52 }}>
-          <Text className="text-echo-muted text-base" style={{ lineHeight: 20 }}>@</Text>
+        <View className="w-full bg-echo-surface rounded-2xl px-4 flex-row items-center mb-2" style={{ height: 52 }}>
           <TextInput
-            value={handle}
-            onChangeText={setHandle}
-            placeholder="username"
+            value={note}
+            onChangeText={setNote}
+            placeholder={'e.g. "Alex, red hoodie near the bar"'}
             placeholderTextColor="#555"
-            autoCapitalize="none"
+            autoCapitalize="sentences"
             autoCorrect={false}
-            autoComplete="off"
-            className="flex-1 text-white text-base ml-1"
+            className="flex-1 text-white text-base"
             style={{ lineHeight: 20, paddingVertical: 0 }}
             returnKeyType="done"
             onSubmitEditing={handleContinue}
+            maxLength={MAX_NOTE_LENGTH}
           />
         </View>
 
+        <Text className="text-echo-muted text-xs self-end mb-4">
+          {note.length}/{MAX_NOTE_LENGTH}
+        </Text>
+
         <TouchableOpacity
           onPress={handleContinue}
-          disabled={saving || !handle.trim()}
+          disabled={saving}
           className={`w-full rounded-2xl py-4 items-center justify-center ${
-            handle.trim() ? "bg-echo-primary" : "bg-echo-surface"
+            note.trim()
+              ? "bg-echo-primary"
+              : "border border-echo-muted/50"
           }`}
           activeOpacity={0.8}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />
           ) : (
-            <Text className={`text-base font-semibold ${handle.trim() ? "text-white" : "text-echo-muted"}`}>
-              Continue
+            <Text className="text-white text-base font-semibold">
+              {note.trim() ? "Continue" : "Skip for now"}
             </Text>
           )}
         </TouchableOpacity>
 
-        <Text className="text-echo-muted text-xs text-center mt-4 leading-5">
-          Your username is only revealed after a mutual match.
+        <Text className="text-echo-muted text-xs text-center mt-6 leading-5">
+          This is optional. You can always add or change it in settings.
         </Text>
       </View>
     </KeyboardAvoidingView>

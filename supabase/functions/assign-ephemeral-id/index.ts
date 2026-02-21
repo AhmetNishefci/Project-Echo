@@ -56,7 +56,7 @@ serve(async (req: Request) => {
         },
         { onConflict: "id" },
       )
-      .select("gender")
+      .select("gender, note")
       .single();
 
     if (profileError) {
@@ -95,6 +95,7 @@ serve(async (req: Request) => {
         token,
         expires_at: expiresAt,
         is_active: true,
+        note: profileData?.note ?? null,
       })
       .select()
       .single();
@@ -115,6 +116,7 @@ serve(async (req: Request) => {
         token: data.token,
         expires_at: data.expires_at,
         gender: profileData?.gender ?? null,
+        note: profileData?.note ?? null,
       }),
       {
         status: 200,

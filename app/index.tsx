@@ -11,7 +11,7 @@ const MAX_PROFILE_RETRIES = 3;
 
 export default function IndexScreen() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, setInstagramHandle, setGender, setGenderPreference } = useAuthStore();
+  const { isAuthenticated, isLoading, setInstagramHandle, setGender, setGenderPreference, setNote } = useAuthStore();
   const [fetchFailed, setFetchFailed] = useState(false);
   const retryCount = useRef(0);
 
@@ -60,11 +60,12 @@ export default function IndexScreen() {
         }
 
         setInstagramHandle(profile.instagramHandle);
+        setNote(profile.note);
         logger.auth("Session valid, navigating to radar");
         router.replace("/(main)/radar");
       });
     }
-  }, [isAuthenticated, isLoading, setInstagramHandle, setGender, setGenderPreference, router]);
+  }, [isAuthenticated, isLoading, setInstagramHandle, setGender, setGenderPreference, setNote, router]);
 
   const handleRetry = () => {
     retryCount.current = 0;
@@ -88,6 +89,7 @@ export default function IndexScreen() {
         return;
       }
       setInstagramHandle(profile.instagramHandle);
+      setNote(profile.note);
       router.replace("/(main)/radar");
     });
   };

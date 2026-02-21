@@ -8,6 +8,7 @@ interface TokenResponse {
   token: string;
   expires_at: string;
   gender: Gender | null;
+  note: string | null;
 }
 
 const MAX_RETRIES = 3;
@@ -91,6 +92,9 @@ async function attemptFetchToken(): Promise<TokenResponse | null> {
   if (result.gender) {
     useAuthStore.getState().setGender(result.gender);
   }
+
+  // Sync note from server
+  useAuthStore.getState().setNote(result.note ?? null);
 
   logger.echo("New ephemeral token assigned", {
     token: result.token.substring(0, 8),

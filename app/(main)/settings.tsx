@@ -7,7 +7,7 @@ import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
-import { saveInstagramHandle, updateGenderPreference } from "@/services/profile";
+import { saveInstagramHandle, updateGenderPreference, saveNote } from "@/services/profile";
 import { supabase } from "@/services/supabase";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
@@ -21,7 +21,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference } = useAuthStore();
+  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote } = useAuthStore();
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);
@@ -29,6 +29,9 @@ export default function SettingsScreen() {
   const [handleInput, setHandleInput] = useState(instagramHandle ?? "");
   const [savingHandle, setSavingHandle] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteInput, setNoteInput] = useState(note ?? "");
+  const [savingNote, setSavingNote] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
 
@@ -71,6 +74,23 @@ export default function SettingsScreen() {
       showToast(`Now showing ${label.toLowerCase()}`);
     } else {
       showToast("Could not update preference. Try again.", "error");
+    }
+  };
+
+  const handleSaveNote = async () => {
+    const trimmed = noteInput.trim();
+    impactLight();
+    setSavingNote(true);
+
+    const success = await saveNote(trimmed || null);
+    setSavingNote(false);
+
+    if (success) {
+      setNote(trimmed || null);
+      setEditingNote(false);
+      showToast(trimmed ? "Note updated" : "Note cleared");
+    } else {
+      showToast("Could not update note. Try again.", "error");
     }
   };
 
@@ -267,6 +287,75 @@ export default function SettingsScreen() {
         )}
         <Text className="text-echo-muted text-xs mt-2 leading-4">
           Shown to you and your match after a mutual wave.
+        </Text>
+      </Section>
+
+      {/* Note */}
+      <Section title="Note">
+        {editingNote ? (
+          <View>
+            <View className="bg-echo-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
+              <TextInput
+                value={noteInput}
+                onChangeText={setNoteInput}
+                placeholder="e.g. Alex, red hoodie"
+                placeholderTextColor="#555"
+                autoCapitalize="sentences"
+                autoCorrect={false}
+                className="flex-1 text-white text-sm"
+                style={{ lineHeight: 18, paddingVertical: 0 }}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleSaveNote}
+                maxLength={40}
+              />
+              {noteInput.length > 0 && (
+                <TouchableOpacity onPress={() => setNoteInput("")} className="pl-2">
+                  <Ionicons name="close-circle" size={18} color="#888" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View className="flex-row justify-between items-center mt-2">
+              <Text className="text-echo-muted text-xs">{noteInput.length}/40</Text>
+              <View className="flex-row">
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingNote(false);
+                    setNoteInput(note ?? "");
+                  }}
+                  className="rounded-lg px-4 py-2 mr-2"
+                >
+                  <Text className="text-echo-muted text-sm">Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleSaveNote}
+                  disabled={savingNote}
+                  className="bg-echo-primary rounded-lg px-5 py-2"
+                >
+                  {savingNote ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <Text className="text-white text-sm font-semibold">Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setEditingNote(true)} activeOpacity={0.7}>
+            <View className="flex-row justify-between items-center py-1.5">
+              <Text className="text-echo-muted text-sm">Note</Text>
+              <View className="flex-row items-center">
+                <Text className="text-white text-sm mr-2" numberOfLines={1} style={{ maxWidth: 180 }}>
+                  {note || "Not set"}
+                </Text>
+                <Ionicons name="pencil" size={14} color="#6c63ff" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+        <Text className="text-echo-muted text-xs mt-2 leading-4">
+          Visible to everyone nearby. Changes appear within about 30 seconds.
         </Text>
       </Section>
 

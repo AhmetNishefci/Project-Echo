@@ -8,8 +8,10 @@ import {
 import { requestBlePermissions } from "./permissions";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
+import { useAuthStore } from "@/stores/authStore";
 import { SCAN_DURATION_MS, SCAN_PAUSE_MS } from "./constants";
 import type { BleAdapterState } from "@/types";
+import { genderToChar } from "@/types";
 import { logger } from "@/utils/logger";
 
 class EchoBleManager {
@@ -58,6 +60,18 @@ class EchoBleManager {
   }
 
   /**
+   * Build the BLE payload string from the current token and gender.
+   * Format: "{genderChar}{token}" — native module prepends "E:" for local name.
+   */
+  private buildPayload(token: string): string {
+    const gender = useAuthStore.getState().gender;
+    if (gender) {
+      return genderToChar(gender) + token;
+    }
+    return token;
+  }
+
+  /**
    * Start the BLE engine: begin advertising and scanning.
    * Requires permissions to be granted and a token to advertise.
    */
@@ -79,9 +93,9 @@ class EchoBleManager {
     this.isRunning = true;
     logger.ble("Starting Echo BLE engine");
 
-    // Start advertising
+    // Start advertising with gender-prefixed payload
     try {
-      await startAdvertising(token);
+      await startAdvertising(this.buildPayload(token));
       useBleStore.getState().setAdvertising(true);
     } catch (error) {
       logger.error("Failed to start advertising", error);
@@ -128,7 +142,7 @@ class EchoBleManager {
    */
   async rotateToken(newToken: string): Promise<void> {
     try {
-      await updateAdvertisedToken(newToken);
+      await updateAdvertisedToken(this.buildPayload(newToken));
       logger.ble("Token rotated");
     } catch (error) {
       logger.error("Token rotation failed", error);
@@ -210,11 +224,11 @@ class EchoBleManager {
     logger.ble("Resuming BLE engine (adapter on)");
     this.startScanCycle();
 
-    // Restart advertising with current token
+    // Restart advertising with current token + gender
     const token = useEchoStore.getState().currentToken;
     if (token) {
       try {
-        await startAdvertising(token);
+        await startAdvertising(this.buildPayload(token));
         useBleStore.getState().setAdvertising(true);
       } catch (err) {
         logger.error("Failed to restart advertising after resume", err);

@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Share,
+  RefreshControl,
 } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
@@ -22,6 +23,7 @@ import Animated, {
 import { impactMedium, impactLight, notifySuccess, notifyError } from "@/utils/haptics";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
+import { useAuthStore } from "@/stores/authStore";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { sendWave, undoWave } from "@/services/echo/waves";
 import { PermissionGate } from "@/components/PermissionGate";
@@ -58,20 +60,45 @@ export default function RadarScreen() {
   } = useBleStore();
   const { currentToken, isRotating } = useEchoStore();
   const rawIncomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
+  const genderPreference = useAuthStore((s) => s.genderPreference);
 
-  // Only count incoming waves from wavers still visible on the radar.
-  // After the waver's token rotates, they appear as a new peer and the
-  // old token is no longer in nearbyPeers, so the banner should clear.
+  // Filter peers by gender preference before display
+  const filteredPeers = useMemo(() => {
+    if (!genderPreference || genderPreference === "both") {
+      return nearbyPeers;
+    }
+    const filtered = new Map<string, NearbyPeer>();
+    for (const [token, peer] of nearbyPeers) {
+      // Show peers whose gender matches preference, or whose gender is unknown
+      if (!peer.gender || peer.gender === genderPreference) {
+        filtered.set(token, peer);
+      }
+    }
+    return filtered;
+  }, [nearbyPeers, genderPreference]);
+
+  // Only count incoming waves from wavers still visible on the radar
+  // AND matching gender preference (prevent phantom wave notifications).
   const incomingWaveTokens = useMemo(
-    () => rawIncomingWaveTokens.filter((t) => nearbyPeers.has(t)),
-    [rawIncomingWaveTokens, nearbyPeers],
+    () => rawIncomingWaveTokens.filter((t) => filteredPeers.has(t)),
+    [rawIncomingWaveTokens, filteredPeers],
   );
   const [isStarting, setIsStarting] = useState(false);
   const startingRef = useRef(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    if (!isDiscoveryActive) return;
+    setRefreshing(true);
+    useBleStore.getState().clearPeers();
+    // Brief pause so the user sees the refresh indicator
+    await new Promise((r) => setTimeout(r, 800));
+    setRefreshing(false);
+  }, [isDiscoveryActive]);
 
   const sections = useMemo<ZoneSection[]>(() => {
-    const peers = Array.from(nearbyPeers.values());
+    const peers = Array.from(filteredPeers.values());
     const groups: Record<DistanceZone, NearbyPeer[]> = {
       HERE: [],
       CLOSE: [],
@@ -97,11 +124,11 @@ export default function RadarScreen() {
         color: ZONE_CONFIG[zone].color,
         data: groups[zone],
       }));
-  }, [nearbyPeers]);
+  }, [filteredPeers]);
 
   const totalPeers = useMemo(
-    () => Array.from(nearbyPeers.values()).length,
-    [nearbyPeers],
+    () => Array.from(filteredPeers.values()).length,
+    [filteredPeers],
   );
 
   const handleStartDiscovery = useCallback(async () => {
@@ -323,6 +350,14 @@ export default function RadarScreen() {
         renderSectionHeader={renderSectionHeader}
         contentContainerStyle={{ paddingBottom: 40 }}
         stickySectionHeadersEnabled={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#6c63ff"
+            enabled={isDiscoveryActive}
+          />
+        }
         ListEmptyComponent={
           isDiscoveryActive ? (
             <View className="items-center mt-16">

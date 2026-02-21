@@ -1,36 +1,125 @@
 import { supabase } from "./supabase";
 import { logger } from "@/utils/logger";
+import type { Gender, GenderPreference } from "@/types";
+
+export interface UserProfile {
+  instagramHandle: string | null;
+  gender: Gender | null;
+  genderPreference: GenderPreference | null;
+}
 
 /**
- * Fetch the current user's Instagram handle from their profile.
- * Returns null if not set.
+ * Fetch the current user's profile (gender, preference, Instagram handle).
  */
-export async function fetchInstagramHandle(): Promise<string | null> {
+export async function fetchProfile(): Promise<UserProfile | null> {
   try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
     if (!user) {
-      logger.error("fetchInstagramHandle: no user");
+      logger.error("fetchProfile: no user");
       return null;
     }
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("instagram_handle")
+      .select("instagram_handle, gender, gender_preference")
       .eq("id", user.id)
       .maybeSingle();
 
     if (error) {
-      logger.error("fetchInstagramHandle error", error);
+      logger.error("fetchProfile error", error);
       return null;
     }
 
-    return data?.instagram_handle ?? null;
+    return {
+      instagramHandle: data?.instagram_handle ?? null,
+      gender: data?.gender ?? null,
+      genderPreference: data?.gender_preference ?? null,
+    };
   } catch (err) {
-    logger.error("fetchInstagramHandle exception", err);
+    logger.error("fetchProfile exception", err);
     return null;
+  }
+}
+
+/**
+ * Fetch the current user's Instagram handle from their profile.
+ * Returns null if not set.
+ */
+export async function fetchInstagramHandle(): Promise<string | null> {
+  const profile = await fetchProfile();
+  return profile?.instagramHandle ?? null;
+}
+
+/**
+ * Save gender and gender preference to the user's profile.
+ * Called during onboarding (gender is set once and locked).
+ */
+export async function saveGenderProfile(
+  gender: Gender,
+  genderPreference: GenderPreference,
+): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("saveGenderProfile: no user");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ gender, gender_preference: genderPreference })
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("saveGenderProfile error", error);
+      return false;
+    }
+
+    logger.auth("Gender profile saved", { gender, genderPreference });
+    return true;
+  } catch (err) {
+    logger.error("saveGenderProfile exception", err);
+    return false;
+  }
+}
+
+/**
+ * Update the user's gender preference (changeable from settings).
+ */
+export async function updateGenderPreference(
+  genderPreference: GenderPreference,
+): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("updateGenderPreference: no user");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ gender_preference: genderPreference })
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("updateGenderPreference error", error);
+      return false;
+    }
+
+    logger.auth("Gender preference updated", { genderPreference });
+    return true;
+  } catch (err) {
+    logger.error("updateGenderPreference exception", err);
+    return false;
   }
 }
 

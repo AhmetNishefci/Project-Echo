@@ -1,9 +1,25 @@
+export type Gender = "male" | "female";
+export type GenderPreference = "male" | "female" | "both";
+
+/** Map a single BLE gender character to a Gender value */
+export function genderCharToGender(char: string): Gender | null {
+  if (char === "M") return "male";
+  if (char === "F") return "female";
+  return null;
+}
+
+/** Map a Gender value to a single BLE gender character */
+export function genderToChar(gender: Gender): string {
+  return gender === "male" ? "M" : "F";
+}
+
 export interface NearbyPeer {
   deviceBleId: string;
   ephemeralToken: string;
   rssi: number;
   lastSeen: number;
   discoveredAt: number;
+  gender: Gender | null;
 }
 
 export type DistanceZone = "HERE" | "CLOSE" | "NEARBY";

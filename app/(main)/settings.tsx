@@ -2,23 +2,40 @@ import { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, Linking, TextInput } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
+import { Ionicons } from "@expo/vector-icons";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
-import { saveInstagramHandle } from "@/services/profile";
+import { saveInstagramHandle, updateGenderPreference } from "@/services/profile";
 import { supabase } from "@/services/supabase";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
+import { Toast, type ToastVariant } from "@/components/Toast";
+import type { GenderPreference } from "@/types";
+
+const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
+  { value: "male", label: "Men" },
+  { value: "female", label: "Women" },
+  { value: "both", label: "Everyone" },
+];
 
 export default function SettingsScreen() {
-  const { userId, instagramHandle, setInstagramHandle } = useAuthStore();
+  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference } = useAuthStore();
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);
   const [editingHandle, setEditingHandle] = useState(false);
   const [handleInput, setHandleInput] = useState(instagramHandle ?? "");
   const [savingHandle, setSavingHandle] = useState(false);
+  const [savingPreference, setSavingPreference] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
+
+  const showToast = (msg: string, variant: ToastVariant = "success") => {
+    setToastVariant(variant);
+    setToastMessage(msg);
+  };
 
   const handleSaveHandle = async () => {
     const trimmed = handleInput.trim().replace(/^@/, "");
@@ -33,11 +50,27 @@ export default function SettingsScreen() {
     if (saved) {
       setInstagramHandle(saved);
       setEditingHandle(false);
+      showToast("Username updated");
     } else {
-      Alert.alert(
-        "Invalid Username",
-        "Please enter a valid Instagram username (letters, numbers, dots, and underscores).",
-      );
+      showToast("Invalid username. Use letters, numbers, dots, and underscores.", "error");
+    }
+  };
+
+  const handlePreferenceChange = async (pref: GenderPreference) => {
+    if (pref === genderPreference) return;
+
+    impactLight();
+    setSavingPreference(true);
+
+    const success = await updateGenderPreference(pref);
+    setSavingPreference(false);
+
+    if (success) {
+      setGenderPreference(pref);
+      const label = PREFERENCE_OPTIONS.find((o) => o.value === pref)?.label ?? pref;
+      showToast(`Now showing ${label.toLowerCase()}`);
+    } else {
+      showToast("Could not update preference. Try again.", "error");
     }
   };
 
@@ -50,7 +83,10 @@ export default function SettingsScreen() {
         {
           text: "Clear",
           style: "destructive",
-          onPress: () => useEchoStore.getState().clearMatches(),
+          onPress: () => {
+            useEchoStore.getState().clearMatches();
+            showToast("Match history cleared");
+          },
         },
       ],
     );
@@ -71,7 +107,7 @@ export default function SettingsScreen() {
               const { data: { session } } = await supabase.auth.getSession();
               if (!session) {
                 setDeleting(false);
-                Alert.alert("Error", "Not signed in. Please restart the app.");
+                showToast("Not signed in. Please restart the app.", "error");
                 return;
               }
 
@@ -81,7 +117,7 @@ export default function SettingsScreen() {
 
               if (error) {
                 setDeleting(false);
-                Alert.alert("Error", "Failed to delete account. Please try again.");
+                showToast("Failed to delete account. Try again.", "error");
                 return;
               }
 
@@ -94,7 +130,7 @@ export default function SettingsScreen() {
               router.replace("/");
             } catch {
               setDeleting(false);
-              Alert.alert("Error", "Something went wrong. Please try again.");
+              showToast("Something went wrong. Try again.", "error");
             }
           },
         },
@@ -122,6 +158,54 @@ export default function SettingsScreen() {
       <Section title="Account">
         <InfoRow label="User ID" value={userId ? userId.substring(0, 12) + "..." : "Not authenticated"} />
         <InfoRow label="Signed in via" value="Google" />
+        {gender && (
+          <InfoRow label="Gender" value={gender === "male" ? "Male" : "Female"} />
+        )}
+        {gender && (
+          <Text className="text-echo-muted text-xs mt-2 leading-4">
+            Gender is set during signup and cannot be changed.
+          </Text>
+        )}
+      </Section>
+
+      {/* Discovery Preference */}
+      <Section title="Discovery">
+        <Text className="text-echo-muted text-xs mb-3">Show me</Text>
+        <View style={{ gap: 8 }}>
+          {PREFERENCE_OPTIONS.map((option) => {
+            const selected = genderPreference === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                onPress={() => handlePreferenceChange(option.value)}
+                disabled={savingPreference}
+                className={`rounded-xl py-3 px-4 flex-row items-center justify-between border ${
+                  selected
+                    ? "bg-echo-primary/20 border-echo-primary"
+                    : "bg-echo-bg border-transparent"
+                }`}
+                activeOpacity={0.7}
+              >
+                <Text
+                  className={`text-sm font-semibold ${
+                    selected ? "text-white" : "text-echo-muted"
+                  }`}
+                >
+                  {option.label}
+                </Text>
+                {selected && (
+                  <Ionicons name="checkmark-circle" size={20} color="#6c63ff" />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {savingPreference && (
+          <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
+        )}
+        <Text className="text-echo-muted text-xs mt-3 leading-4">
+          Only people matching your preference will appear on your radar.
+        </Text>
       </Section>
 
       {/* Instagram */}
@@ -176,7 +260,7 @@ export default function SettingsScreen() {
                 <Text className="text-white text-sm font-mono mr-2">
                   {instagramHandle ? `@${instagramHandle}` : "Not set"}
                 </Text>
-                <Text className="text-echo-primary text-xs">Edit</Text>
+                <Ionicons name="pencil" size={14} color="#6c63ff" />
               </View>
             </View>
           </TouchableOpacity>
@@ -237,14 +321,14 @@ export default function SettingsScreen() {
           className="py-3 flex-row justify-between items-center"
         >
           <Text className="text-white text-sm">Privacy Policy</Text>
-          <Text className="text-echo-muted text-xs">›</Text>
+          <Text className="text-echo-muted text-xs">&rsaquo;</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => Linking.openURL("https://wave-app.com/terms")}
           className="py-3 flex-row justify-between items-center"
         >
           <Text className="text-white text-sm">Terms of Service</Text>
-          <Text className="text-echo-muted text-xs">›</Text>
+          <Text className="text-echo-muted text-xs">&rsaquo;</Text>
         </TouchableOpacity>
       </Section>
 
@@ -290,6 +374,9 @@ export default function SettingsScreen() {
         </Text>
       </View>
     </ScrollView>
+
+    {/* Toast */}
+    <Toast message={toastMessage} variant={toastVariant} onDismiss={() => setToastMessage(null)} />
     </>
   );
 }

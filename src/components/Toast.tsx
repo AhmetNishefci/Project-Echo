@@ -1,19 +1,28 @@
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Text } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+
+export type ToastVariant = "success" | "error";
 
 interface ToastProps {
   message: string | null;
+  variant?: ToastVariant;
   onDismiss: () => void;
   durationMs?: number;
-  position?: "top" | "bottom";
 }
+
+const variantStyles: Record<ToastVariant, { bg: string; borderColor: string }> = {
+  success: { bg: "bg-green-900", borderColor: "#16a34a" },
+  error: { bg: "bg-red-900", borderColor: "#dc2626" },
+};
 
 /**
  * Auto-dismissing toast notification using Reanimated.
- * Renders as an absolute-positioned overlay — place inside a relative container.
+ * Renders as an absolute-positioned overlay at the top of the screen.
  */
-export function Toast({ message, onDismiss, durationMs = 2000, position = "bottom" }: ToastProps) {
+export function Toast({ message, variant = "success", onDismiss, durationMs = 2000 }: ToastProps) {
+  const insets = useSafeAreaInsets();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onDismissRef = useRef(onDismiss);
   onDismissRef.current = onDismiss;
@@ -31,18 +40,17 @@ export function Toast({ message, onDismiss, durationMs = 2000, position = "botto
 
   if (!message) return null;
 
-  const positionClass = position === "top"
-    ? "top-16 left-6 right-6"
-    : "bottom-28 left-6 right-6";
+  const { bg, borderColor } = variantStyles[variant];
 
   return (
     <Animated.View
-      key={message}
+      key={`${message}-${variant}`}
       entering={FadeIn.duration(200)}
       exiting={FadeOut.duration(200)}
-      className={`absolute z-50 bg-echo-surface border border-echo-muted rounded-2xl py-3 px-4 ${positionClass}`}
+      style={{ top: insets.top + 8, borderColor }}
+      className={`absolute left-4 right-4 z-50 ${bg} border rounded-2xl py-3 px-4`}
     >
-      <Text className="text-white text-sm text-center">{message}</Text>
+      <Text className="text-white text-sm text-center font-medium">{message}</Text>
     </Animated.View>
   );
 }

@@ -1,11 +1,13 @@
 import { supabase } from "../supabase";
 import { useEchoStore } from "@/stores/echoStore";
+import { useAuthStore } from "@/stores/authStore";
 import { logger } from "@/utils/logger";
-import { getFreshSession } from "./session";
+import type { Gender } from "@/types";
 
 interface TokenResponse {
   token: string;
   expires_at: string;
+  gender: Gender | null;
 }
 
 const MAX_RETRIES = 3;
@@ -46,20 +48,18 @@ export async function fetchNewToken(): Promise<TokenResponse | null> {
 }
 
 async function attemptFetchToken(): Promise<TokenResponse | null> {
-  const session = await getFreshSession();
+  // Verify we have a valid session before calling the edge function
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
 
-  if (!session) {
-    logger.error("Cannot fetch token: no active session");
+  if (userError || !user) {
+    logger.error("Cannot fetch token: no valid session", userError);
     return null;
   }
 
+  // Let the Supabase client handle the Authorization header automatically
+  // — this uses the client's internal (freshest) session token
   const { data, error } = await supabase.functions.invoke(
     "assign-ephemeral-id",
-    {
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    },
   );
 
   if (error) {
@@ -86,6 +86,11 @@ async function attemptFetchToken(): Promise<TokenResponse | null> {
   // Update store
   const expiresAtMs = new Date(result.expires_at).getTime();
   useEchoStore.getState().setToken(result.token, expiresAtMs);
+
+  // Sync gender from server (keeps authStore in sync during rotations)
+  if (result.gender) {
+    useAuthStore.getState().setGender(result.gender);
+  }
 
   logger.echo("New ephemeral token assigned", {
     token: result.token.substring(0, 8),

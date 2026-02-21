@@ -47,7 +47,7 @@ serve(async (req: Request) => {
     const userId = user.id;
 
     // Ensure profile exists (handles case where trigger hasn't fired)
-    const { error: profileError } = await adminClient
+    const { data: profileData, error: profileError } = await adminClient
       .from("profiles")
       .upsert(
         {
@@ -55,7 +55,9 @@ serve(async (req: Request) => {
           is_anonymous: user.is_anonymous ?? true,
         },
         { onConflict: "id" },
-      );
+      )
+      .select("gender")
+      .single();
 
     if (profileError) {
       console.error("Failed to ensure profile:", profileError);
@@ -112,6 +114,7 @@ serve(async (req: Request) => {
       JSON.stringify({
         token: data.token,
         expires_at: data.expires_at,
+        gender: profileData?.gender ?? null,
       }),
       {
         status: 200,

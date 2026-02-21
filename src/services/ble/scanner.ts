@@ -8,7 +8,8 @@ import {
   GATT_READ_COOLDOWN_MS,
 } from "./constants";
 import { useBleStore } from "@/stores/bleStore";
-import type { NearbyPeer } from "@/types";
+import type { NearbyPeer, Gender } from "@/types";
+import { genderCharToGender } from "@/types";
 import { logger } from "@/utils/logger";
 
 // Track pending and recently-completed GATT connections to avoid duplicates
@@ -23,17 +24,58 @@ const UPSERT_BATCH_MS = 300;
 /** Reference to the BleManager, set when scanning starts */
 let scannerBleManager: BleManager | null = null;
 
+interface BlePayload {
+  token: string;
+  gender: Gender | null;
+}
+
 /**
- * Extract the ephemeral token from a device's local name.
- * The format is "E:{token}" where token is a 16-char hex string.
- * Returns null if the name doesn't match the expected format.
+ * Extract the ephemeral token and gender from a device's local name.
+ * Format: "E:{gender_char}{16-char-hex-token}" (e.g. "E:Mabc123def456a7b8")
+ * Falls back to legacy format "E:{16-char-hex-token}" for compatibility.
  */
-function extractToken(device: Device): string | null {
+function extractPayload(device: Device): BlePayload | null {
   const name = device.localName ?? device.name;
   if (!name || !name.startsWith(LOCAL_NAME_PREFIX)) return null;
-  const token = name.slice(LOCAL_NAME_PREFIX.length);
-  if (token.length !== 16 || !/^[0-9a-f]{16}$/.test(token)) return null;
-  return token;
+  const raw = name.slice(LOCAL_NAME_PREFIX.length);
+
+  // New format: gender char + 16 hex chars (17 total)
+  if (raw.length === 17) {
+    const gender = genderCharToGender(raw[0]);
+    const token = raw.slice(1);
+    if (/^[0-9a-f]{16}$/.test(token)) {
+      return { token, gender };
+    }
+  }
+
+  // Legacy format: 16 hex chars (no gender)
+  if (raw.length === 16 && /^[0-9a-f]{16}$/.test(raw)) {
+    return { token: raw, gender: null };
+  }
+
+  return null;
+}
+
+/**
+ * Parse a raw GATT characteristic value into token + gender.
+ * Handles both new format (gender char + 16 hex) and legacy (16 hex).
+ */
+function parseGattValue(decoded: string): BlePayload | null {
+  // New format: gender char + 16 hex chars
+  if (decoded.length === 17) {
+    const gender = genderCharToGender(decoded[0]);
+    const token = decoded.slice(1);
+    if (/^[0-9a-f]{16}$/.test(token)) {
+      return { token, gender };
+    }
+  }
+
+  // Legacy format: 16 hex chars
+  if (decoded.length === 16 && /^[0-9a-f]{16}$/.test(decoded)) {
+    return { token: decoded, gender: null };
+  }
+
+  return null;
 }
 
 /**
@@ -93,11 +135,11 @@ export function pruneGattReadCache(): void {
 }
 
 function handleDiscoveredDevice(device: Device): void {
-  const token = extractToken(device);
+  const payload = extractPayload(device);
 
-  if (token) {
+  if (payload) {
     // Fast path: got token from local name (foreground advertising)
-    upsertPeerWithToken(device, token);
+    upsertPeerWithToken(device, payload.token, payload.gender);
     return;
   }
 
@@ -108,7 +150,7 @@ function handleDiscoveredDevice(device: Device): void {
   }
 }
 
-function upsertPeerWithToken(device: Device, token: string): void {
+function upsertPeerWithToken(device: Device, token: string, gender: Gender | null): void {
   const deviceId = device.id;
   const rssi = device.rssi ?? -100;
   const now = Date.now();
@@ -121,6 +163,7 @@ function upsertPeerWithToken(device: Device, token: string): void {
     rssi,
     lastSeen: now,
     discoveredAt: existing?.discoveredAt ?? now,
+    gender: gender ?? existing?.gender ?? null,
   };
 
   // Batch upserts to avoid creating a new Map on every BLE advertisement
@@ -142,7 +185,7 @@ function upsertPeerWithToken(device: Device, token: string): void {
   }
 
   if (!existing) {
-    logger.ble(`Discovered peer: ${token.substring(0, 8)}...`, { rssi });
+    logger.ble(`Discovered peer: ${token.substring(0, 8)}...`, { rssi, gender });
   }
 }
 
@@ -181,12 +224,12 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
         // react-native-ble-plx returns base64-encoded data
         // Use atob (available on Hermes 0.71+); no Buffer in React Native
         const decoded = atob(read.value);
-        // Validate: must be exactly 16 lowercase hex characters
-        if (/^[0-9a-f]{16}$/.test(decoded)) {
+        const payload = parseGattValue(decoded);
+        if (payload) {
           logger.ble(
-            `GATT read token: ${decoded.substring(0, 8)}... from ${deviceId.substring(0, 8)}`,
+            `GATT read token: ${payload.token.substring(0, 8)}... from ${deviceId.substring(0, 8)}`,
           );
-          upsertPeerWithToken(device, decoded);
+          upsertPeerWithToken(device, payload.token, payload.gender);
         } else {
           logger.ble(`GATT read invalid token format from ${deviceId.substring(0, 8)}: len=${decoded.length}`);
         }

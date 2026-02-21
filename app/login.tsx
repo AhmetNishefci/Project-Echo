@@ -28,7 +28,7 @@ export default function LoginScreen() {
     setLoading(false);
 
     if (success) {
-      router.replace("/onboarding");
+      router.replace("/");
     } else if (error && error !== "cancelled") {
       Alert.alert("Sign In Failed", error);
     }

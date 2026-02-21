@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
+import type { Gender, GenderPreference } from "@/types";
 
 interface AuthState {
   session: Session | null;
@@ -7,10 +8,14 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
   instagramHandle: string | null;
+  gender: Gender | null;
+  genderPreference: GenderPreference | null;
 
   setSession: (session: Session | null) => void;
   setLoading: (loading: boolean) => void;
   setInstagramHandle: (handle: string | null) => void;
+  setGender: (gender: Gender | null) => void;
+  setGenderPreference: (pref: GenderPreference | null) => void;
   reset: () => void;
 }
 
@@ -20,6 +25,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
   isAuthenticated: false,
   instagramHandle: null,
+  gender: null,
+  genderPreference: null,
 
   setSession: (session) =>
     set({
@@ -33,6 +40,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setInstagramHandle: (instagramHandle) => set({ instagramHandle }),
 
+  setGender: (gender) => set({ gender }),
+
+  setGenderPreference: (genderPreference) => set({ genderPreference }),
+
   reset: () =>
     set({
       session: null,
@@ -40,5 +51,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       isLoading: false,
       isAuthenticated: false,
       instagramHandle: null,
+      gender: null,
+      genderPreference: null,
     }),
 }));

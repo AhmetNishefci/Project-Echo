@@ -23,6 +23,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 
 export default function SettingsScreen() {
   const { session, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
+  const totalMatches = useEchoStore((s) => s.matches.length);
   const userEmail = session?.user?.email ?? null;
   const router = useRouter();
 
@@ -255,6 +256,11 @@ export default function SettingsScreen() {
             Gender is set during signup and cannot be changed.
           </Text>
         )}
+      </Section>
+
+      {/* Stats */}
+      <Section title="Stats">
+        <InfoRow label="Total Matches" value={String(totalMatches)} />
       </Section>
 
       {/* Discovery Preference */}

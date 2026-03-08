@@ -19,6 +19,8 @@ const CONFETTI_COLORS = [
   "#FF6BFF", "#FFB86B", "#6BFFD9", "#C56BFF",
 ];
 
+const MATCH_MILESTONES = [1, 5, 10, 25, 50, 100];
+
 interface ConfettiPiece {
   id: number;
   x: number;
@@ -67,6 +69,14 @@ export default function MatchScreen() {
     }));
   }, []);
 
+  const matchCount = useEchoStore((s) => s.matches.length);
+
+  const milestone = MATCH_MILESTONES.includes(matchCount)
+    ? matchCount === 1
+      ? "Your first match!"
+      : `${matchCount} matches!`
+    : null;
+
   if (!displayMatch) return null;
 
   const openInstagram = () => {
@@ -108,6 +118,13 @@ export default function MatchScreen() {
       <Text className="text-echo-muted text-center text-base mb-4">
         You both waved at each other
       </Text>
+
+      {/* Milestone badge */}
+      {milestone && (
+        <View className="bg-echo-primary/20 rounded-full px-4 py-1.5 -mt-1 mb-3">
+          <Text className="text-echo-primary text-sm font-semibold">{milestone}</Text>
+        </View>
+      )}
 
       {/* Instagram handle */}
       {handle ? (

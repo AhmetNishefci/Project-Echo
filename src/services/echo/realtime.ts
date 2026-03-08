@@ -150,21 +150,31 @@ export function unsubscribeFromMatches(): void {
 
 /**
  * Fetch the matched user's Instagram handle via authenticated RPC.
+ * Retries up to 3 times with exponential backoff (1s, 2s, 4s).
  * Updates the match in the store once retrieved.
  */
 async function fetchMatchHandle(matchId: string): Promise<void> {
-  const { data, error } = await supabase.rpc("get_matched_instagram_handles", {
-    p_match_ids: [matchId],
-  });
+  const MAX_RETRIES = 3;
 
-  if (error) {
-    logger.error("RPC get_matched_instagram_handles failed", error);
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const { data, error } = await supabase.rpc("get_matched_instagram_handles", {
+      p_match_ids: [matchId],
+    });
+
+    if (error) {
+      logger.error(`RPC get_matched_instagram_handles failed (attempt ${attempt + 1})`, error);
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        continue;
+      }
+      return;
+    }
+
+    const row = (data as { match_id: string; instagram_handle: string | null }[] | null)?.[0];
+    if (row?.instagram_handle) {
+      useEchoStore.getState().updateMatchHandle(matchId, row.instagram_handle);
+      logger.echo("Match handle fetched via RPC", { matchId, handle: row.instagram_handle });
+    }
     return;
-  }
-
-  const row = (data as { match_id: string; instagram_handle: string | null }[] | null)?.[0];
-  if (row?.instagram_handle) {
-    useEchoStore.getState().updateMatchHandle(matchId, row.instagram_handle);
-    logger.echo("Match handle fetched via RPC", { matchId, handle: row.instagram_handle });
   }
 }

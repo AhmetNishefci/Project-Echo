@@ -1,0 +1,68 @@
+import { useEffect } from "react";
+import { View, Text } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  withDelay,
+  Easing,
+} from "react-native-reanimated";
+
+function PulseRing({ delay }: { delay: number }) {
+  const scale = useSharedValue(0.3);
+  const opacity = useSharedValue(0.6);
+
+  useEffect(() => {
+    scale.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(1, { duration: 2400, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      ),
+    );
+    opacity.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(0, { duration: 2400, easing: Easing.out(Easing.ease) }),
+        -1,
+        false,
+      ),
+    );
+  }, [delay, scale, opacity]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          width: 140,
+          height: 140,
+          borderRadius: 70,
+          borderWidth: 2,
+          borderColor: "rgba(99, 102, 241, 0.35)",
+        },
+        animatedStyle,
+      ]}
+    />
+  );
+}
+
+export function ScanPulse() {
+  return (
+    <View className="w-36 h-36 items-center justify-center">
+      <PulseRing delay={0} />
+      <PulseRing delay={800} />
+      <PulseRing delay={1600} />
+      <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center border-2 border-echo-primary/40">
+        <Text className="text-3xl">📡</Text>
+      </View>
+    </View>
+  );
+}

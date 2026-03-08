@@ -3,7 +3,9 @@ import { AppState, AppStateStatus } from "react-native";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
+import { useAuthStore } from "@/stores/authStore";
 import { fetchNewToken } from "@/services/echo/ephemeralId";
+import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 import { logger } from "@/utils/logger";
 
 /**
@@ -44,13 +46,24 @@ export function useBleLifecycle() {
                   logger.error("Failed to rotate token on foreground", e),
                 );
               }
-              // Restart scan cycle only AFTER token is refreshed
               echoBleManager.restartScanCycle();
               logger.ble("App foregrounded — scan cycle restarted after token refresh");
             });
           } else {
             echoBleManager.restartScanCycle();
             logger.ble("App foregrounded — scan cycle restarted at full speed");
+          }
+
+          // Refresh location so proximity alerts stay fresh while backgrounded
+          // Server rate-limits to 30s, so this is safe to call on every foreground.
+          if (useAuthStore.getState().nearbyAlertsEnabled) {
+            getCurrentLocation().then((loc) => {
+              if (loc) {
+                updateLocationOnServer(loc.latitude, loc.longitude).catch((e) =>
+                  logger.error("Location refresh on foreground failed (non-fatal)", e),
+                );
+              }
+            });
           }
         }
       }

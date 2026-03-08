@@ -8,21 +8,8 @@ import {
   ActivityIndicator,
   Share,
   RefreshControl,
-  Modal,
-  Pressable,
-  Linking,
 } from "react-native";
-import { useRouter } from "expo-router";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  withDelay,
-  Easing,
-  FadeIn,
-  FadeOut,
-} from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { impactMedium, impactLight, notifySuccess, notifyError } from "@/utils/haptics";
 import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
@@ -32,10 +19,12 @@ import { sendWave, undoWave } from "@/services/echo/waves";
 import { PermissionGate } from "@/components/PermissionGate";
 import { BleStatusBar } from "@/components/StatusBar";
 import { Toast } from "@/components/Toast";
+import { PeerRow } from "@/components/PeerRow";
+import { PeerDetailModal } from "@/components/PeerDetailModal";
+import { ScanPulse } from "@/components/ScanPulse";
 import type { NearbyPeer, DistanceZone } from "@/types";
-import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
+import { getDistanceZone } from "@/types";
 import { logger } from "@/utils/logger";
-import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
 import { playWaveSent } from "@/utils/sound";
 import { useNoteResolver } from "@/hooks/useNoteResolver";
 import { seedFakePeers, clearFakePeers } from "@/utils/seedPeers";
@@ -50,7 +39,6 @@ const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
 };
 
 const PEER_DISPLAY_CAP = 50;
-const WAVE_EXPIRY_MS = WAVE_EXPIRY_MINUTES * 60 * 1_000;
 
 interface ZoneSection {
   zone: DistanceZone;
@@ -99,7 +87,7 @@ export default function RadarScreen() {
   );
   const [isStarting, setIsStarting] = useState(false);
   const startingRef = useRef(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; variant?: "success" | "error" } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<NearbyPeer | null>(null);
   const [showAllPeers, setShowAllPeers] = useState(false);
@@ -273,15 +261,15 @@ export default function RadarScreen() {
     if (result.status === "error") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
-      Alert.alert("Wave Failed", "Could not send wave. Try again.");
+      setToast({ message: "Could not send wave. Try again.", variant: "error" });
     } else if (result.status === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
-      setToast("You've already matched with this person!");
+      setToast({ message: "You've already matched with this person!" });
     } else if (result.status === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
-      Alert.alert("Slow Down", "You're waving too fast. Wait a moment and try again.");
+      setToast({ message: "You're waving too fast. Wait a moment.", variant: "error" });
     } else if (result.status === "match") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
@@ -292,7 +280,7 @@ export default function RadarScreen() {
       if (result.targetUserId) {
         store.setPendingWaveUser(result.targetUserId, peer.ephemeralToken);
       }
-      setToast("Wave sent! You can undo anytime before it expires.");
+      setToast({ message: "Wave sent! You can undo anytime before it expires." });
     }
   }, []);
 
@@ -305,7 +293,7 @@ export default function RadarScreen() {
     undoingRef.current = null;
     if (success) {
       useEchoStore.getState().removePendingWaveByToken(targetToken);
-      setToast("Wave undone");
+      setToast({ message: "Wave undone" });
     } else {
       notifyError();
       Alert.alert("Undo Failed", "Could not undo the wave. It may have already been matched or expired.");
@@ -568,297 +556,8 @@ export default function RadarScreen() {
         <PeerDetailModal peer={selectedPeer} onClose={() => setSelectedPeer(null)} />
       )}
 
-      <Toast message={toast} onDismiss={() => setToast(null)} />
+      <Toast message={toast?.message ?? null} variant={toast?.variant} onDismiss={() => setToast(null)} />
     </View>
   );
 }
 
-/* ─── Scanning Pulse Animation ──────────────────────────────── */
-
-function PulseRing({ delay }: { delay: number }) {
-  const scale = useSharedValue(0.3);
-  const opacity = useSharedValue(0.6);
-
-  useEffect(() => {
-    scale.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(1, { duration: 2400, easing: Easing.out(Easing.ease) }),
-        -1,
-        false,
-      ),
-    );
-    opacity.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(0, { duration: 2400, easing: Easing.out(Easing.ease) }),
-        -1,
-        false,
-      ),
-    );
-  }, [delay, scale, opacity]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          position: "absolute",
-          width: 140,
-          height: 140,
-          borderRadius: 70,
-          borderWidth: 2,
-          borderColor: "rgba(99, 102, 241, 0.35)",
-        },
-        animatedStyle,
-      ]}
-    />
-  );
-}
-
-function ScanPulse() {
-  return (
-    <View className="w-36 h-36 items-center justify-center">
-      <PulseRing delay={0} />
-      <PulseRing delay={800} />
-      <PulseRing delay={1600} />
-      <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center border-2 border-echo-primary/40">
-        <Text className="text-3xl">📡</Text>
-      </View>
-    </View>
-  );
-}
-
-/* ─── Peer Row ──────────────────────────────────────────────── */
-
-function PeerRow({
-  peer,
-  onWave,
-  onUndo,
-  onPress,
-  isOffline,
-}: {
-  peer: NearbyPeer;
-  onWave: (p: NearbyPeer) => void;
-  onUndo: (token: string) => void;
-  onPress: (p: NearbyPeer) => void;
-  isOffline: boolean;
-}) {
-  const wavePending = useEchoStore(
-    (s) => s.pendingWaves.get(peer.ephemeralToken) ?? null,
-  );
-  const isAlreadyMatched = useEchoStore(
-    (s) => s.matchedTokens.has(peer.ephemeralToken),
-  );
-  const hasWavedAtMe = useEchoStore(
-    (s) => s.incomingWaveTokens.includes(peer.ephemeralToken),
-  );
-  const avatar = useMemo(
-    () => getAvatarForToken(peer.ephemeralToken),
-    [peer.ephemeralToken],
-  );
-  const freshness = getTimeSince(peer.lastSeen);
-
-  // Auto-expire wave after 15 minutes — revert button to Wave 👋
-  useEffect(() => {
-    if (!wavePending) return;
-
-    const elapsed = Date.now() - wavePending.sentAt;
-    if (elapsed >= WAVE_EXPIRY_MS) {
-      // Already expired — clean up immediately
-      useEchoStore.getState().removePendingWave(peer.ephemeralToken);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      useEchoStore.getState().removePendingWave(peer.ephemeralToken);
-    }, WAVE_EXPIRY_MS - elapsed);
-
-    return () => clearTimeout(timer);
-  }, [wavePending, peer.ephemeralToken]);
-
-  return (
-    <View
-      className={`py-3 px-4 mb-2 rounded-xl flex-row items-center ${
-        isAlreadyMatched
-          ? "bg-pink-500/10 border border-pink-500/20"
-          : hasWavedAtMe
-            ? "bg-green-500/10 border border-green-500/20"
-            : "bg-echo-surface"
-      }`}
-    >
-      {/* Tappable area: avatar + info */}
-      <Pressable onPress={() => onPress(peer)} className="flex-row items-center flex-1 mr-3">
-        {/* Avatar */}
-        <View
-          className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
-            isAlreadyMatched ? "bg-pink-500/20 border-2 border-pink-500/40" : `${avatar.bg} border-2 ${avatar.ring}`
-          }`}
-        >
-          <Text className="text-lg">{isAlreadyMatched ? "✨" : avatar.emoji}</Text>
-        </View>
-
-        {/* Info */}
-        <View className="flex-1">
-          <View className="flex-row items-center">
-            <Text className="text-white text-base flex-shrink" numberOfLines={1}>
-              {peer.note || "Someone"}
-            </Text>
-            {isAlreadyMatched ? (
-              <Text className="text-pink-400 text-xs ml-2">matched!</Text>
-            ) : hasWavedAtMe ? (
-              <Text className="text-green-400 text-xs ml-2">waved at you</Text>
-            ) : wavePending ? (
-              <Text className="text-orange-400/60 text-xs ml-2">waiting for wave back</Text>
-            ) : null}
-          </View>
-          <Text className="text-echo-muted text-xs">{freshness}</Text>
-        </View>
-      </Pressable>
-
-      {/* Wave / Undo / Matched */}
-      {isAlreadyMatched ? (
-        <TouchableOpacity
-          onPress={() => onPress(peer)}
-          className="bg-echo-match/20 border border-echo-match/40 rounded-lg px-3 py-1.5"
-        >
-          <Text className="text-echo-match font-semibold text-sm">
-            Matched 🤝
-          </Text>
-        </TouchableOpacity>
-      ) : wavePending ? (
-        <TouchableOpacity
-          onPress={() => onUndo(peer.ephemeralToken)}
-          className="bg-orange-500/20 border border-orange-500/40 rounded-lg px-3 py-1.5"
-        >
-          <Text className="text-orange-400 font-semibold text-sm">Undo</Text>
-        </TouchableOpacity>
-      ) : (
-        <TouchableOpacity
-          onPress={() => onWave(peer)}
-          disabled={isOffline}
-          className={`rounded-lg px-3 py-1.5 ${
-            isOffline
-              ? "bg-echo-muted/10 border border-echo-muted/20"
-              : hasWavedAtMe
-                ? "bg-green-500/20 border border-green-500/40"
-                : "bg-echo-wave/20 border border-echo-wave/40"
-          }`}
-        >
-          <Text
-            className={`font-semibold text-sm ${
-              isOffline
-                ? "text-echo-muted"
-                : hasWavedAtMe ? "text-green-400" : "text-echo-wave"
-            }`}
-          >
-            {hasWavedAtMe ? "Wave Back 👋" : "Wave 👋"}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-/* ─── Peer Detail Modal ────────────────────────────────────── */
-
-function PeerDetailModal({
-  peer,
-  onClose,
-}: {
-  peer: NearbyPeer;
-  onClose: () => void;
-}) {
-  const router = useRouter();
-  const avatar = getAvatarForToken(peer.ephemeralToken);
-  const signal = getSignalLabel(peer.rssi);
-  const zone = getDistanceZone(peer.rssi);
-  const zoneLabel = ZONE_CONFIG[zone].label;
-  const zoneColor = ZONE_CONFIG[zone].color;
-  const freshness = getTimeSince(peer.lastSeen);
-  const isMatched = useEchoStore((s) => s.matchedTokens.has(peer.ephemeralToken));
-  const instagramHandle = useEchoStore((s) => s.matchedHandles.get(peer.ephemeralToken));
-
-  const openInstagram = () => {
-    if (!instagramHandle) return;
-    Linking.openURL(`instagram://user?username=${instagramHandle}`).catch(() => {
-      Linking.openURL(`https://instagram.com/${instagramHandle}`).catch(() => {});
-    });
-  };
-
-  return (
-    <Modal transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} className="flex-1 bg-black/60 justify-end">
-        <Pressable onPress={(e) => e.stopPropagation()} className="bg-echo-surface rounded-t-3xl px-6 pt-6 pb-10">
-          {/* Handle bar */}
-          <View className="w-10 h-1 rounded-full bg-echo-muted/40 self-center mb-5" />
-
-          {/* Avatar + Note */}
-          <View className="items-center mb-4">
-            <View
-              className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
-                isMatched ? "bg-pink-500/20 border-2 border-pink-500/40" : `${avatar.bg} border-2 ${avatar.ring}`
-              }`}
-            >
-              <Text className="text-2xl">{isMatched ? "✨" : avatar.emoji}</Text>
-            </View>
-            <Text className="text-white text-lg font-semibold text-center px-4">
-              {peer.note || "Someone"}
-            </Text>
-            {isMatched && (
-              <View className="bg-echo-match/20 rounded-full px-3 py-1 mt-2">
-                <Text className="text-echo-match text-xs font-semibold">Matched</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Instagram handle (if matched) */}
-          {isMatched && instagramHandle && (
-            <TouchableOpacity
-              onPress={openInstagram}
-              className="bg-echo-bg rounded-xl px-4 py-3 mb-4 flex-row items-center justify-between"
-            >
-              <Text className="text-echo-muted text-sm">Instagram</Text>
-              <Text className="text-echo-accent text-sm font-semibold">@{instagramHandle}</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Details */}
-          <View className="bg-echo-bg rounded-xl px-4 py-3 mb-4">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-echo-muted text-sm">Distance</Text>
-              <Text className={`text-sm font-medium ${zoneColor}`}>{zoneLabel}</Text>
-            </View>
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-echo-muted text-sm">Signal</Text>
-              <Text className="text-white text-sm">{signal}</Text>
-            </View>
-            <View className="flex-row justify-between items-center">
-              <Text className="text-echo-muted text-sm">Last seen</Text>
-              <Text className="text-white text-sm">{freshness}</Text>
-            </View>
-          </View>
-
-          {/* View Matches (if matched) */}
-          {isMatched && (
-            <TouchableOpacity
-              onPress={() => { onClose(); router.push("/(main)/history"); }}
-              className="bg-echo-primary rounded-xl py-3 items-center mb-3"
-            >
-              <Text className="text-white text-sm font-semibold">View All Matches</Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Close */}
-          <TouchableOpacity onPress={onClose} className="bg-echo-bg rounded-xl py-3 items-center">
-            <Text className="text-white text-sm font-semibold">Close</Text>
-          </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}

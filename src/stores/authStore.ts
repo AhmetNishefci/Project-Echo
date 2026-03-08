@@ -7,6 +7,7 @@ interface AuthState {
   userId: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  dateOfBirth: string | null;
   instagramHandle: string | null;
   gender: Gender | null;
   genderPreference: GenderPreference | null;
@@ -16,6 +17,7 @@ interface AuthState {
 
   setSession: (session: Session | null) => void;
   setLoading: (loading: boolean) => void;
+  setDateOfBirth: (dob: string | null) => void;
   setInstagramHandle: (handle: string | null) => void;
   setGender: (gender: Gender | null) => void;
   setGenderPreference: (pref: GenderPreference | null) => void;
@@ -30,6 +32,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   userId: null,
   isLoading: true,
   isAuthenticated: false,
+  dateOfBirth: null,
   instagramHandle: null,
   gender: null,
   genderPreference: null,
@@ -46,6 +49,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     }),
 
   setLoading: (isLoading) => set({ isLoading }),
+
+  setDateOfBirth: (dateOfBirth) => set({ dateOfBirth }),
 
   setInstagramHandle: (instagramHandle) => set({ instagramHandle }),
 
@@ -65,6 +70,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       userId: null,
       isLoading: false,
       isAuthenticated: false,
+      dateOfBirth: null,
       instagramHandle: null,
       gender: null,
       genderPreference: null,

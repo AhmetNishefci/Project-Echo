@@ -7,6 +7,7 @@ let lastTimezoneSyncMs = 0;
 const TIMEZONE_SYNC_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export interface UserProfile {
+  dateOfBirth: string | null;
   instagramHandle: string | null;
   gender: Gender | null;
   genderPreference: GenderPreference | null;
@@ -32,7 +33,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("instagram_handle, gender, gender_preference, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
+      .select("date_of_birth, instagram_handle, gender, gender_preference, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -42,6 +43,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
     }
 
     return {
+      dateOfBirth: data?.date_of_birth ?? null,
       instagramHandle: data?.instagram_handle ?? null,
       gender: data?.gender ?? null,
       genderPreference: data?.gender_preference ?? null,
@@ -63,6 +65,55 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 export async function fetchInstagramHandle(): Promise<string | null> {
   const profile = await fetchProfile();
   return profile?.instagramHandle ?? null;
+}
+
+/**
+ * Save the user's date of birth (set once, immutable via DB trigger).
+ * Expects YYYY-MM-DD format.
+ */
+export async function saveDateOfBirth(dob: string): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("saveDateOfBirth: no user");
+      return false;
+    }
+
+    const { data: updated, error } = await supabase
+      .from("profiles")
+      .update({ date_of_birth: dob })
+      .eq("id", user.id)
+      .select("id");
+
+    if (error) {
+      logger.error("saveDateOfBirth error", error);
+      return false;
+    }
+
+    if (!updated || updated.length === 0) {
+      logger.error("saveDateOfBirth: no profile row — attempting upsert fallback", { userId: user.id });
+      const { error: upsertError } = await supabase
+        .from("profiles")
+        .upsert(
+          { id: user.id, date_of_birth: dob },
+          { onConflict: "id" },
+        );
+
+      if (upsertError) {
+        logger.error("saveDateOfBirth upsert fallback failed", upsertError);
+        return false;
+      }
+    }
+
+    logger.auth("Date of birth saved", { dob });
+    return true;
+  } catch (err) {
+    logger.error("saveDateOfBirth exception", err);
+    return false;
+  }
 }
 
 /**

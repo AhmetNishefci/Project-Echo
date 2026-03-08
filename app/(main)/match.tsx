@@ -51,7 +51,7 @@ export default function MatchScreen() {
 
   useEffect(() => {
     if (!displayMatch) {
-      router.navigate("/(main)/radar");
+      router.replace("/(main)/radar");
     }
   }, [displayMatch, router]);
 
@@ -103,7 +103,7 @@ export default function MatchScreen() {
     if (displayMatch) {
       markMatchSeen(displayMatch.matchId);
     }
-    router.navigate("/(main)/radar");
+    router.replace("/(main)/radar");
   };
 
   return (

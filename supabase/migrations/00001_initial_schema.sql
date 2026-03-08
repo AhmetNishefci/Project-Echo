@@ -620,30 +620,37 @@ CREATE POLICY "Users can manage own push tokens"
 
 GRANT USAGE ON SCHEMA public TO postgres, anon, authenticated, service_role;
 
-GRANT ALL ON TABLE public.profiles TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.ephemeral_ids TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.waves TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.matches TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.push_tokens TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.proximity_notifications TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.engagement_notifications TO anon, authenticated, service_role;
-GRANT ALL ON TABLE public.push_receipts TO anon, authenticated, service_role;
+-- service_role gets full access (used by edge functions)
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO service_role;
 
-GRANT ALL ON FUNCTION public.check_and_create_match(uuid, character varying) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.claim_instagram_handle(text) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.cleanup_expired_data() TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.find_nearby_users(uuid, double precision, double precision, integer, integer) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.get_engagement_eligible_users(integer, integer, integer, integer, integer, integer) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.get_matched_instagram_handles(uuid[]) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.handle_new_user() TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.prevent_gender_change() TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.remove_match(uuid, uuid) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.resolve_peer_notes(text[]) TO anon, authenticated, service_role;
-GRANT ALL ON FUNCTION public.update_active_note(text) TO anon, authenticated, service_role;
+-- Tables clients interact with directly (protected by RLS)
+GRANT SELECT, INSERT, UPDATE ON TABLE public.profiles TO authenticated;
+GRANT SELECT ON TABLE public.ephemeral_ids TO authenticated;
+GRANT SELECT ON TABLE public.matches TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.push_tokens TO authenticated;
 
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO postgres, anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO postgres, anon, authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, anon, authenticated, service_role;
+-- Tables accessed ONLY via SECURITY DEFINER functions — no direct client access
+-- (waves, proximity_notifications, engagement_notifications, push_receipts)
+
+-- Functions clients may call directly
+GRANT EXECUTE ON FUNCTION public.check_and_create_match(uuid, character varying) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_instagram_handle(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_matched_instagram_handles(uuid[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.remove_match(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.resolve_peer_notes(text[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_active_note(text) TO authenticated;
+
+-- Functions only edge functions should call (service_role only, granted above)
+-- cleanup_expired_data, find_nearby_users, get_engagement_eligible_users
+
+-- Trigger functions (invoked by Postgres, not by clients)
+-- handle_new_user, prevent_gender_change
+
+-- Default privileges for future objects
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON FUNCTIONS TO service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO postgres, service_role;
 
 
 -- ---------------------------------------------------------------------------

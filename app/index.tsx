@@ -5,6 +5,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { fetchProfile, syncTimezoneAndActivity } from "@/services/profile";
 import { fetchMatchesFromServer } from "@/services/echo/matches";
 import { logger } from "@/utils/logger";
+import { isAtLeastAge } from "@/utils/age";
 
 const appIcon = require("../assets/icon.png");
 
@@ -22,6 +23,72 @@ export default function IndexScreen() {
 
   // Ref to hold pending timeout IDs for cleanup (C2 fix)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Shared routing logic: hydrates auth store from profile and navigates
+   * to the appropriate screen based on onboarding completeness.
+   */
+  const routeFromProfile = useCallback(
+    (profile: NonNullable<Awaited<ReturnType<typeof fetchProfile>>>) => {
+      const { setDateOfBirth, setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
+        useAuthStore.getState();
+
+      // Age check — must happen before all other onboarding steps
+      if (!profile.dateOfBirth) {
+        logger.auth("No DOB, redirecting to birthday");
+        router.replace("/birthday");
+        return;
+      }
+
+      // Check if user is under 18 based on stored DOB
+      if (!isAtLeastAge(new Date(profile.dateOfBirth + "T00:00:00"), 18)) {
+        logger.auth("User under 18, redirecting to age-blocked");
+        setDateOfBirth(profile.dateOfBirth);
+        router.replace("/age-blocked");
+        return;
+      }
+
+      setDateOfBirth(profile.dateOfBirth);
+
+      if (!profile.gender) {
+        logger.auth("No gender, redirecting to gender");
+        router.replace("/gender");
+        return;
+      }
+
+      setGender(profile.gender);
+      setGenderPreference(profile.genderPreference);
+
+      if (!profile.instagramHandle) {
+        logger.auth("No handle, redirecting to onboarding");
+        router.replace("/onboarding");
+        return;
+      }
+
+      setInstagramHandle(profile.instagramHandle);
+      setNote(profile.note);
+      setNearbyAlertsEnabled(profile.nearbyAlertsEnabled);
+      setDailyPushesEnabled(profile.dailyPushesEnabled);
+
+      if (!profile.nearbyAlertsOnboarded) {
+        logger.auth("Nearby alerts not configured, redirecting");
+        router.replace("/nearby-alerts");
+        return;
+      }
+
+      // Background syncs (non-blocking)
+      syncTimezoneAndActivity().catch((err) =>
+        logger.error("Timezone/activity sync failed", err),
+      );
+      fetchMatchesFromServer().catch((err) =>
+        logger.error("Background match fetch failed", err),
+      );
+
+      logger.auth("Session valid, navigating to radar");
+      router.replace("/(main)/radar");
+    },
+    [router],
+  );
 
   const navigateWithProfile = useCallback(
     async (generation: number, retryCount: number) => {
@@ -51,50 +118,9 @@ export default function IndexScreen() {
         return;
       }
 
-      const { setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
-        useAuthStore.getState();
-
-      if (!profile.gender) {
-        logger.auth("Session valid but no gender, redirecting to gender");
-        router.replace("/gender");
-        return;
-      }
-
-      setGender(profile.gender);
-      setGenderPreference(profile.genderPreference);
-
-      if (!profile.instagramHandle) {
-        logger.auth("Session valid but no handle, redirecting to onboarding");
-        router.replace("/onboarding");
-        return;
-      }
-
-      setInstagramHandle(profile.instagramHandle);
-      setNote(profile.note);
-      setNearbyAlertsEnabled(profile.nearbyAlertsEnabled);
-      setDailyPushesEnabled(profile.dailyPushesEnabled);
-
-      // Check if user has completed nearby alerts onboarding
-      if (!profile.nearbyAlertsOnboarded) {
-        logger.auth("Session valid but nearby alerts not configured, redirecting");
-        router.replace("/nearby-alerts");
-        return;
-      }
-
-      // Sync timezone and activity in background (for engagement notifications)
-      syncTimezoneAndActivity().catch((err) =>
-        logger.error("Timezone/activity sync failed", err),
-      );
-
-      // Fetch matches from server in background to sync match history
-      fetchMatchesFromServer().catch((err) =>
-        logger.error("Background match fetch failed", err),
-      );
-
-      logger.auth("Session valid, navigating to radar");
-      router.replace("/(main)/radar");
+      routeFromProfile(profile);
     },
-    [router],
+    [routeFromProfile],
   );
 
   useEffect(() => {
@@ -137,33 +163,8 @@ export default function IndexScreen() {
       return;
     }
 
-    const { setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
-      useAuthStore.getState();
-
-    if (!profile.gender) {
-      router.replace("/gender");
-      return;
-    }
-    setGender(profile.gender);
-    setGenderPreference(profile.genderPreference);
-
-    if (!profile.instagramHandle) {
-      router.replace("/onboarding");
-      return;
-    }
-    setInstagramHandle(profile.instagramHandle);
-    setNote(profile.note);
-    setNearbyAlertsEnabled(profile.nearbyAlertsEnabled);
-    setDailyPushesEnabled(profile.dailyPushesEnabled);
-
-    if (!profile.nearbyAlertsOnboarded) {
-      router.replace("/nearby-alerts");
-      return;
-    }
-
-    syncTimezoneAndActivity().catch(() => {});
-    router.replace("/(main)/radar");
-  }, [isNavigating, router]);
+    routeFromProfile(profile);
+  }, [isNavigating, routeFromProfile]);
 
   return (
     <View className="flex-1 items-center justify-center bg-echo-bg">

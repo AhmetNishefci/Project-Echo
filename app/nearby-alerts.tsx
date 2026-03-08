@@ -83,25 +83,25 @@ export default function NearbyAlertsScreen() {
 
   return (
     <View
-      className="flex-1 bg-echo-bg items-center justify-center px-8"
+      className="flex-1 bg-wave-bg items-center justify-center px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       {/* Icon */}
-      <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center mb-6 border-2 border-echo-primary/40">
+      <View className="w-16 h-16 rounded-full bg-wave-primary/20 items-center justify-center mb-6 border-2 border-wave-primary/40">
         <Ionicons name="location-outline" size={32} color="#6c63ff" />
       </View>
 
       <Text className="text-2xl font-bold text-white mb-2">
         Never Miss a Connection
       </Text>
-      <Text className="text-echo-muted text-sm text-center mb-8 leading-5 px-4">
+      <Text className="text-wave-muted text-sm text-center mb-8 leading-5 px-4">
         Get notified when Wave users are near you so you can wave before they leave.
       </Text>
 
       {/* How it works */}
-      <View className="w-full bg-echo-surface rounded-2xl p-5 mb-8">
+      <View className="w-full bg-wave-surface rounded-2xl p-5 mb-8">
         <View className="flex-row items-center mb-4">
-          <View className="w-8 h-8 rounded-full bg-echo-primary/20 items-center justify-center mr-3">
+          <View className="w-8 h-8 rounded-full bg-wave-primary/20 items-center justify-center mr-3">
             <Text className="text-sm">📍</Text>
           </View>
           <Text className="text-white text-sm flex-1">
@@ -109,7 +109,7 @@ export default function NearbyAlertsScreen() {
           </Text>
         </View>
         <View className="flex-row items-center mb-4">
-          <View className="w-8 h-8 rounded-full bg-echo-primary/20 items-center justify-center mr-3">
+          <View className="w-8 h-8 rounded-full bg-wave-primary/20 items-center justify-center mr-3">
             <Text className="text-sm">🔔</Text>
           </View>
           <Text className="text-white text-sm flex-1">
@@ -117,7 +117,7 @@ export default function NearbyAlertsScreen() {
           </Text>
         </View>
         <View className="flex-row items-center">
-          <View className="w-8 h-8 rounded-full bg-echo-primary/20 items-center justify-center mr-3">
+          <View className="w-8 h-8 rounded-full bg-wave-primary/20 items-center justify-center mr-3">
             <Text className="text-sm">🔒</Text>
           </View>
           <Text className="text-white text-sm flex-1">
@@ -127,10 +127,10 @@ export default function NearbyAlertsScreen() {
       </View>
 
       {/* Toggle */}
-      <View className="w-full bg-echo-surface rounded-2xl p-4 mb-8 flex-row items-center justify-between">
+      <View className="w-full bg-wave-surface rounded-2xl p-4 mb-8 flex-row items-center justify-between">
         <View className="flex-1 mr-4">
           <Text className="text-white text-base font-semibold">Nearby Alerts</Text>
-          <Text className="text-echo-muted text-xs mt-1">
+          <Text className="text-wave-muted text-xs mt-1">
             Know when Wave users are around you
           </Text>
         </View>
@@ -146,7 +146,7 @@ export default function NearbyAlertsScreen() {
       <TouchableOpacity
         onPress={handleContinue}
         disabled={saving}
-        className="w-full bg-echo-primary rounded-2xl py-4 items-center justify-center mb-3"
+        className="w-full bg-wave-primary rounded-2xl py-4 items-center justify-center mb-3"
         activeOpacity={0.8}
       >
         {saving ? (
@@ -158,10 +158,10 @@ export default function NearbyAlertsScreen() {
 
       {/* Skip */}
       <TouchableOpacity onPress={handleSkip} disabled={saving}>
-        <Text className="text-echo-muted text-sm">Skip for now</Text>
+        <Text className="text-wave-muted text-sm">Skip for now</Text>
       </TouchableOpacity>
 
-      <Text className="text-echo-muted text-xs text-center mt-4 leading-5 px-4">
+      <Text className="text-wave-muted text-xs text-center mt-4 leading-5 px-4">
         You can change this anytime in Settings.
       </Text>
     </View>

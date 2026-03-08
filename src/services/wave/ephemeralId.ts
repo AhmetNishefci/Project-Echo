@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
 import { logger } from "@/utils/logger";
 import type { Gender } from "@/types";
@@ -19,13 +19,13 @@ const INITIAL_RETRY_DELAY_MS = 2_000;
  * Retries up to 3 times with exponential backoff on failure.
  */
 export async function fetchNewToken(): Promise<TokenResponse | null> {
-  useEchoStore.getState().setRotating(true);
+  useWaveStore.getState().setRotating(true);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
       const result = await attemptFetchToken();
       if (result) {
-        useEchoStore.getState().setRotating(false);
+        useWaveStore.getState().setRotating(false);
         return result;
       }
     } catch (error) {
@@ -38,13 +38,13 @@ export async function fetchNewToken(): Promise<TokenResponse | null> {
     // Don't delay after the last attempt
     if (attempt < MAX_RETRIES) {
       const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-      logger.echo(`Retrying token fetch in ${delay}ms...`);
+      logger.wave(`Retrying token fetch in ${delay}ms...`);
       await new Promise((r) => setTimeout(r, delay));
     }
   }
 
   logger.error("All token fetch attempts failed");
-  useEchoStore.getState().setRotating(false);
+  useWaveStore.getState().setRotating(false);
   return null;
 }
 
@@ -86,7 +86,7 @@ async function attemptFetchToken(): Promise<TokenResponse | null> {
 
   // Update store
   const expiresAtMs = new Date(result.expires_at).getTime();
-  useEchoStore.getState().setToken(result.token, expiresAtMs);
+  useWaveStore.getState().setToken(result.token, expiresAtMs);
 
   // Sync gender from server (keeps authStore in sync during rotations)
   if (result.gender) {
@@ -96,7 +96,7 @@ async function attemptFetchToken(): Promise<TokenResponse | null> {
   // Sync note from server
   useAuthStore.getState().setNote(result.note ?? null);
 
-  logger.echo("New ephemeral token assigned", {
+  logger.wave("New ephemeral token assigned", {
     token: result.token.substring(0, 8),
     expiresAt: result.expires_at,
   });

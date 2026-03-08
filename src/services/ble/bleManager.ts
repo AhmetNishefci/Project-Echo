@@ -8,14 +8,14 @@ import {
 } from "./advertiser";
 import { requestBlePermissions } from "./permissions";
 import { useBleStore } from "@/stores/bleStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
 import { SCAN_DURATION_MS, SCAN_PAUSE_MS } from "./constants";
 import type { BleAdapterState } from "@/types";
 import { genderToChar } from "@/types";
 import { logger } from "@/utils/logger";
 
-class EchoBleManager {
+class WaveBleManager {
   private bleManager: PlxBleManager | null = null;
   private stateSubscription: Subscription | null = null;
   private scanCycleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,13 +93,13 @@ class EchoBleManager {
       throw new Error("BLE permissions not granted.");
     }
 
-    const token = useEchoStore.getState().currentToken;
+    const token = useWaveStore.getState().currentToken;
     if (!token) {
       throw new Error("No ephemeral token available. Fetch one first.");
     }
 
     this.isRunning = true;
-    logger.ble("Starting Echo BLE engine");
+    logger.ble("Starting Wave BLE engine");
 
     // Start advertising with gender-prefixed payload
     try {
@@ -125,7 +125,7 @@ class EchoBleManager {
    */
   async stop(): Promise<void> {
     this.isRunning = false;
-    logger.ble("Stopping Echo BLE engine");
+    logger.ble("Stopping Wave BLE engine");
 
     this.stopScanCycle();
     this.stopPruning();
@@ -244,7 +244,7 @@ class EchoBleManager {
 
     // Stop old advertisement and wait for completion before restarting (H6 fix)
     // This prevents overlapping advertising sessions from the pause/resume race
-    const token = useEchoStore.getState().currentToken;
+    const token = useWaveStore.getState().currentToken;
     if (token) {
       try {
         await stopAdvertising();
@@ -285,4 +285,4 @@ class EchoBleManager {
 }
 
 // Singleton instance
-export const echoBleManager = new EchoBleManager();
+export const waveBleManager = new WaveBleManager();

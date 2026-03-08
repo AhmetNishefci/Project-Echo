@@ -8,7 +8,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        echo: {
+        wave: {
           bg: "#0a0a0a",
           surface: "#1a1a2e",
           primary: "#6c63ff",

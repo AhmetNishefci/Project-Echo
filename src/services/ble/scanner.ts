@@ -1,8 +1,8 @@
 import { BleManager, Device } from "react-native-ble-plx";
 import { Platform } from "react-native";
 import {
-  ECHO_SERVICE_UUID,
-  ECHO_TOKEN_CHAR_UUID,
+  WAVE_SERVICE_UUID,
+  WAVE_TOKEN_CHAR_UUID,
   LOCAL_NAME_PREFIX,
   GATT_CONNECT_TIMEOUT_MS,
   GATT_READ_COOLDOWN_MS,
@@ -98,7 +98,7 @@ function parseGattValue(decoded: string): BlePayload | null {
 }
 
 /**
- * Start scanning for nearby Echo devices.
+ * Start scanning for nearby Wave devices.
  * In foreground: tokens are read from the advertisement local name.
  * In background: tokens are read via GATT connection (iOS strips local name).
  */
@@ -113,10 +113,10 @@ export function startScanning(bleManager: BleManager): void {
 
   // Clear error on successful scan start (H9 fix)
   useBleStore.setState({ isScanning: true, error: null });
-  logger.ble("Starting BLE scan for Echo devices");
+  logger.ble("Starting BLE scan for Wave devices");
 
   bleManager.startDeviceScan(
-    [ECHO_SERVICE_UUID],
+    [WAVE_SERVICE_UUID],
     { allowDuplicates: true },
     (error, device) => {
       if (error) {
@@ -266,9 +266,9 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
 
     await connected.discoverAllServicesAndCharacteristics();
 
-    const chars = await connected.characteristicsForService(ECHO_SERVICE_UUID);
+    const chars = await connected.characteristicsForService(WAVE_SERVICE_UUID);
     const tokenChar = chars?.find(
-      (c) => c.uuid.toUpperCase() === ECHO_TOKEN_CHAR_UUID.toUpperCase(),
+      (c) => c.uuid.toUpperCase() === WAVE_TOKEN_CHAR_UUID.toUpperCase(),
     );
 
     if (tokenChar) {

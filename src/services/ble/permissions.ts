@@ -89,7 +89,7 @@ async function requestAndroidPermissions(): Promise<BlePermissionStatus> {
         {
           title: "Location Permission",
           message:
-            "Echo needs location permission to discover nearby Bluetooth devices.",
+            "Wave needs location permission to discover nearby Bluetooth devices.",
           buttonPositive: "Allow",
         },
       );

@@ -4,13 +4,13 @@ import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
 import { useBleStore } from "@/stores/bleStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
 import { saveInstagramHandle, updateGenderPreference, saveNote, saveNearbyAlertsPreference, saveDailyPushesPreference } from "@/services/profile";
 import { requestLocationPermission, hasLocationPermission, isLocationBlocked } from "@/services/location";
 import { supabase } from "@/services/supabase";
-import { echoBleManager } from "@/services/ble/bleManager";
+import { waveBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
 import { Toast, type ToastVariant } from "@/components/Toast";
 import type { GenderPreference } from "@/types";
@@ -23,7 +23,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 
 export default function SettingsScreen() {
   const { session, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
-  const totalMatches = useEchoStore((s) => s.matches.length);
+  const totalMatches = useWaveStore((s) => s.matches.length);
   const userEmail = session?.user?.email ?? null;
   const router = useRouter();
 
@@ -193,8 +193,8 @@ export default function SettingsScreen() {
               }
 
               // Clean up local state
-              await echoBleManager.stop();
-              useEchoStore.getState().reset();
+              await waveBleManager.stop();
+              useWaveStore.getState().reset();
               useBleStore.getState().reset();
               useAuthStore.getState().reset();
               await supabase.auth.signOut();
@@ -219,7 +219,7 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-    <ScrollView className="flex-1 bg-echo-bg pt-16 px-4">
+    <ScrollView className="flex-1 bg-wave-bg pt-16 px-4">
       {/* Header */}
       <View className="mb-6">
         <Text className="text-3xl font-bold text-white">Settings</Text>
@@ -234,7 +234,7 @@ export default function SettingsScreen() {
           <InfoRow label="Gender" value={gender === "male" ? "Male" : "Female"} />
         )}
         {gender && (
-          <Text className="text-echo-muted text-xs mt-2 leading-4">
+          <Text className="text-wave-muted text-xs mt-2 leading-4">
             Gender is set during signup and cannot be changed.
           </Text>
         )}
@@ -247,7 +247,7 @@ export default function SettingsScreen() {
 
       {/* Discovery Preference */}
       <Section title="Discovery">
-        <Text className="text-echo-muted text-xs mb-3">Show me</Text>
+        <Text className="text-wave-muted text-xs mb-3">Show me</Text>
         <View style={{ gap: 8 }}>
           {PREFERENCE_OPTIONS.map((option) => {
             const selected = genderPreference === option.value;
@@ -258,14 +258,14 @@ export default function SettingsScreen() {
                 disabled={savingPreference}
                 className={`rounded-xl py-3 px-4 flex-row items-center justify-between border ${
                   selected
-                    ? "bg-echo-primary/20 border-echo-primary"
-                    : "bg-echo-bg border-transparent"
+                    ? "bg-wave-primary/20 border-wave-primary"
+                    : "bg-wave-bg border-transparent"
                 }`}
                 activeOpacity={0.7}
               >
                 <Text
                   className={`text-sm font-semibold ${
-                    selected ? "text-white" : "text-echo-muted"
+                    selected ? "text-white" : "text-wave-muted"
                   }`}
                 >
                   {option.label}
@@ -280,7 +280,7 @@ export default function SettingsScreen() {
         {savingPreference && (
           <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
         )}
-        <Text className="text-echo-muted text-xs mt-3 leading-4">
+        <Text className="text-wave-muted text-xs mt-3 leading-4">
           Only people matching your preference will appear on your radar.
         </Text>
       </Section>
@@ -290,7 +290,7 @@ export default function SettingsScreen() {
         <View className="flex-row items-center justify-between">
           <View className="flex-1 mr-4">
             <Text className="text-white text-sm font-semibold">Nearby Alerts</Text>
-            <Text className="text-echo-muted text-xs mt-1 leading-4">
+            <Text className="text-wave-muted text-xs mt-1 leading-4">
               Get notified when Wave users are near you
             </Text>
           </View>
@@ -305,7 +305,7 @@ export default function SettingsScreen() {
         {savingAlerts && (
           <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
         )}
-        <Text className="text-echo-muted text-xs mt-3 leading-4">
+        <Text className="text-wave-muted text-xs mt-3 leading-4">
           Uses your location when you open Wave. Your location is never shared with other users.
         </Text>
       </Section>
@@ -315,7 +315,7 @@ export default function SettingsScreen() {
         <View className="flex-row items-center justify-between">
           <View className="flex-1 mr-4">
             <Text className="text-white text-sm font-semibold">Evening Reminders</Text>
-            <Text className="text-echo-muted text-xs mt-1 leading-4">
+            <Text className="text-wave-muted text-xs mt-1 leading-4">
               Get a daily nudge during peak hours (6–8 PM)
             </Text>
           </View>
@@ -330,7 +330,7 @@ export default function SettingsScreen() {
         {savingDailyPushes && (
           <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
         )}
-        <Text className="text-echo-muted text-xs mt-3 leading-4">
+        <Text className="text-wave-muted text-xs mt-3 leading-4">
           One notification per day when Wave users are most active near you.
         </Text>
       </Section>
@@ -339,8 +339,8 @@ export default function SettingsScreen() {
       <Section title="Instagram">
         {editingHandle ? (
           <View>
-            <View className="bg-echo-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
-              <Text className="text-echo-muted text-sm" style={{ lineHeight: 18 }}>@</Text>
+            <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
+              <Text className="text-wave-muted text-sm" style={{ lineHeight: 18 }}>@</Text>
               <TextInput
                 value={handleInput}
                 onChangeText={setHandleInput}
@@ -364,12 +364,12 @@ export default function SettingsScreen() {
                 }}
                 className="rounded-lg px-4 py-2 mr-2"
               >
-                <Text className="text-echo-muted text-sm">Cancel</Text>
+                <Text className="text-wave-muted text-sm">Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveHandle}
                 disabled={savingHandle || !handleInput.trim()}
-                className="bg-echo-primary rounded-lg px-5 py-2"
+                className="bg-wave-primary rounded-lg px-5 py-2"
               >
                 {savingHandle ? (
                   <ActivityIndicator color="white" size="small" />
@@ -382,7 +382,7 @@ export default function SettingsScreen() {
         ) : (
           <TouchableOpacity onPress={() => setEditingHandle(true)} activeOpacity={0.7}>
             <View className="flex-row justify-between items-center py-1.5">
-              <Text className="text-echo-muted text-sm">Username</Text>
+              <Text className="text-wave-muted text-sm">Username</Text>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm font-mono mr-2">
                   {instagramHandle ? `@${instagramHandle}` : "Not set"}
@@ -392,7 +392,7 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         )}
-        <Text className="text-echo-muted text-xs mt-2 leading-4">
+        <Text className="text-wave-muted text-xs mt-2 leading-4">
           Shown to you and your match after a mutual wave.
         </Text>
       </Section>
@@ -401,7 +401,7 @@ export default function SettingsScreen() {
       <Section title="Note">
         {editingNote ? (
           <View>
-            <View className="bg-echo-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
+            <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
               <TextInput
                 value={noteInput}
                 onChangeText={setNoteInput}
@@ -423,7 +423,7 @@ export default function SettingsScreen() {
               )}
             </View>
             <View className="flex-row justify-between items-center mt-2">
-              <Text className="text-echo-muted text-xs">{noteInput.length}/40</Text>
+              <Text className="text-wave-muted text-xs">{noteInput.length}/40</Text>
               <View className="flex-row">
                 <TouchableOpacity
                   onPress={() => {
@@ -432,12 +432,12 @@ export default function SettingsScreen() {
                   }}
                   className="rounded-lg px-4 py-2 mr-2"
                 >
-                  <Text className="text-echo-muted text-sm">Cancel</Text>
+                  <Text className="text-wave-muted text-sm">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSaveNote}
                   disabled={savingNote}
-                  className="bg-echo-primary rounded-lg px-5 py-2"
+                  className="bg-wave-primary rounded-lg px-5 py-2"
                 >
                   {savingNote ? (
                     <ActivityIndicator color="white" size="small" />
@@ -451,7 +451,7 @@ export default function SettingsScreen() {
         ) : (
           <TouchableOpacity onPress={() => setEditingNote(true)} activeOpacity={0.7}>
             <View className="flex-row justify-between items-center py-1.5">
-              <Text className="text-echo-muted text-sm">Note</Text>
+              <Text className="text-wave-muted text-sm">Note</Text>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm mr-2" numberOfLines={1} style={{ maxWidth: 180 }}>
                   {note || "Not set"}
@@ -461,7 +461,7 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         )}
-        <Text className="text-echo-muted text-xs mt-2 leading-4">
+        <Text className="text-wave-muted text-xs mt-2 leading-4">
           Visible to everyone nearby. Changes appear within about 30 seconds.
         </Text>
       </Section>
@@ -507,14 +507,14 @@ export default function SettingsScreen() {
           className="py-3 flex-row justify-between items-center"
         >
           <Text className="text-white text-sm">Privacy Policy</Text>
-          <Text className="text-echo-muted text-xs">&rsaquo;</Text>
+          <Text className="text-wave-muted text-xs">&rsaquo;</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => Linking.openURL("https://wave-app.com/terms")}
           className="py-3 flex-row justify-between items-center"
         >
           <Text className="text-white text-sm">Terms of Service</Text>
-          <Text className="text-echo-muted text-xs">&rsaquo;</Text>
+          <Text className="text-wave-muted text-xs">&rsaquo;</Text>
         </TouchableOpacity>
       </Section>
 
@@ -531,7 +531,7 @@ export default function SettingsScreen() {
                   text: "Sign Out",
                   onPress: async () => {
                     try {
-                      await echoBleManager.stop();
+                      await waveBleManager.stop();
                       await signOut();
                       router.replace("/");
                     } catch {
@@ -550,16 +550,16 @@ export default function SettingsScreen() {
           onPress={handleDeleteAccount}
           className="py-3"
         >
-          <Text className="text-echo-danger text-sm">Delete Account</Text>
+          <Text className="text-wave-danger text-sm">Delete Account</Text>
         </TouchableOpacity>
-        <Text className="text-echo-muted text-xs mt-1">
+        <Text className="text-wave-muted text-xs mt-1">
           Permanently removes your account, matches, and all data.
         </Text>
       </Section>
 
       {/* App info */}
       <View className="items-center mt-4 mb-12">
-        <Text className="text-echo-muted text-xs">
+        <Text className="text-wave-muted text-xs">
           Wave v{Constants.expoConfig?.version ?? "1.0.0"}
         </Text>
       </View>
@@ -580,10 +580,10 @@ function Section({
 }) {
   return (
     <View className="mb-6">
-      <Text className="text-echo-muted text-xs uppercase tracking-wider mb-2">
+      <Text className="text-wave-muted text-xs uppercase tracking-wider mb-2">
         {title}
       </Text>
-      <View className="bg-echo-surface rounded-2xl p-4">{children}</View>
+      <View className="bg-wave-surface rounded-2xl p-4">{children}</View>
     </View>
   );
 }
@@ -599,9 +599,9 @@ function InfoRow({
 }) {
   return (
     <View className="flex-row justify-between items-center py-1.5">
-      <Text className="text-echo-muted text-sm">{label}</Text>
+      <Text className="text-wave-muted text-sm">{label}</Text>
       <Text
-        className={`text-sm font-mono ${isError ? "text-echo-danger" : "text-white"}`}
+        className={`text-sm font-mono ${isError ? "text-wave-danger" : "text-white"}`}
         numberOfLines={1}
         style={{ maxWidth: 180 }}
       >

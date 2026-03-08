@@ -6,9 +6,9 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { supabase } from "./supabase";
 import { useAuthStore } from "@/stores/authStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useBleStore } from "@/stores/bleStore";
-import { unsubscribeFromMatches } from "@/services/echo/realtime";
+import { unsubscribeFromMatches } from "@/services/wave/realtime";
 import { logger } from "@/utils/logger";
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
@@ -91,7 +91,7 @@ export async function signOut(): Promise<void> {
     await supabase.auth.signOut();
 
     // Reset ALL stores, not just authStore (H12 fix)
-    useEchoStore.getState().reset();
+    useWaveStore.getState().reset();
     useBleStore.getState().reset();
     useAuthStore.getState().reset();
 

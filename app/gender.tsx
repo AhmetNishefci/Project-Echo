@@ -71,21 +71,21 @@ export default function GenderScreen() {
 
   return (
     <View
-      className="flex-1 bg-echo-bg items-center justify-center px-8"
+      className="flex-1 bg-wave-bg items-center justify-center px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       {/* Icon */}
-      <View className="w-12 h-12 rounded-full bg-echo-surface items-center justify-center mb-6">
+      <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
         <Ionicons name="person-outline" size={24} color="#6c63ff" />
       </View>
 
       <Text className="text-2xl font-bold text-white mb-2">About You</Text>
-      <Text className="text-echo-muted text-sm text-center mb-8 leading-5">
+      <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
         This helps us show you the right people nearby.
       </Text>
 
       {/* Gender Selection */}
-      <Text className="text-echo-muted text-xs uppercase tracking-wider self-start mb-3">
+      <Text className="text-wave-muted text-xs uppercase tracking-wider self-start mb-3">
         I am
       </Text>
       <View className="w-full flex-row mb-8" style={{ gap: 12 }}>
@@ -100,8 +100,8 @@ export default function GenderScreen() {
               }}
               className={`flex-1 rounded-2xl py-4 items-center justify-center border-2 ${
                 selected
-                  ? "bg-echo-primary/20 border-echo-primary"
-                  : "bg-echo-surface border-transparent"
+                  ? "bg-wave-primary/20 border-wave-primary"
+                  : "bg-wave-surface border-transparent"
               }`}
               activeOpacity={0.8}
             >
@@ -112,7 +112,7 @@ export default function GenderScreen() {
               />
               <Text
                 className={`text-base font-semibold mt-2 ${
-                  selected ? "text-white" : "text-echo-muted"
+                  selected ? "text-white" : "text-wave-muted"
                 }`}
               >
                 {option.label}
@@ -123,7 +123,7 @@ export default function GenderScreen() {
       </View>
 
       {/* Preference Selection */}
-      <Text className="text-echo-muted text-xs uppercase tracking-wider self-start mb-3">
+      <Text className="text-wave-muted text-xs uppercase tracking-wider self-start mb-3">
         Show me
       </Text>
       <View className="w-full mb-8" style={{ gap: 10 }}>
@@ -138,14 +138,14 @@ export default function GenderScreen() {
               }}
               className={`w-full rounded-2xl py-3.5 px-4 flex-row items-center justify-between border-2 ${
                 selected
-                  ? "bg-echo-primary/20 border-echo-primary"
-                  : "bg-echo-surface border-transparent"
+                  ? "bg-wave-primary/20 border-wave-primary"
+                  : "bg-wave-surface border-transparent"
               }`}
               activeOpacity={0.8}
             >
               <Text
                 className={`text-base font-semibold ${
-                  selected ? "text-white" : "text-echo-muted"
+                  selected ? "text-white" : "text-wave-muted"
                 }`}
               >
                 {option.label}
@@ -163,7 +163,7 @@ export default function GenderScreen() {
         onPress={handleContinue}
         disabled={saving || !canContinue}
         className={`w-full rounded-2xl py-4 items-center justify-center ${
-          canContinue ? "bg-echo-primary" : "bg-echo-surface"
+          canContinue ? "bg-wave-primary" : "bg-wave-surface"
         }`}
         activeOpacity={0.8}
       >
@@ -172,7 +172,7 @@ export default function GenderScreen() {
         ) : (
           <Text
             className={`text-base font-semibold ${
-              canContinue ? "text-white" : "text-echo-muted"
+              canContinue ? "text-white" : "text-wave-muted"
             }`}
           >
             Continue
@@ -180,7 +180,7 @@ export default function GenderScreen() {
         )}
       </TouchableOpacity>
 
-      <Text className="text-echo-muted text-xs text-center mt-4 leading-5">
+      <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
         You can change your discovery preference later in settings.
       </Text>
     </View>

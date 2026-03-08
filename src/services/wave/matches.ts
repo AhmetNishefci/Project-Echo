@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { logger } from "@/utils/logger";
 import type { Match } from "@/types";
 
@@ -51,7 +51,7 @@ export async function fetchMatchesFromServer(): Promise<void> {
       logger.error("Failed to fetch match handles via RPC", handleError);
     }
 
-    const store = useEchoStore.getState();
+    const store = useWaveStore.getState();
     const existingIds = new Set(store.matches.map((m) => m.matchId));
 
     const serverMatches: Match[] = data
@@ -73,7 +73,7 @@ export async function fetchMatchesFromServer(): Promise<void> {
       for (const match of serverMatches) {
         store.addMatch(match);
       }
-      logger.echo("Merged server matches into store", {
+      logger.wave("Merged server matches into store", {
         count: serverMatches.length,
       });
     }

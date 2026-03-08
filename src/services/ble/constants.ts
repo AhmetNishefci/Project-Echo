@@ -1,12 +1,12 @@
-// Echo BLE Protocol Constants
+// Wave BLE Protocol Constants
 
-// Custom 128-bit Service UUID for the Echo network.
-// All Echo devices advertise and scan for this UUID.
-export const ECHO_SERVICE_UUID = "E5C00001-B5A3-F393-E0A9-E50E24DCCA9E";
+// Custom 128-bit Service UUID for the Wave network.
+// All Wave devices advertise and scan for this UUID.
+export const WAVE_SERVICE_UUID = "E5C00001-B5A3-F393-E0A9-E50E24DCCA9E";
 
 // GATT Characteristic UUID for the ephemeral token.
 // Used when the local name is stripped in background mode.
-export const ECHO_TOKEN_CHAR_UUID = "E5C00002-B5A3-F393-E0A9-E50E24DCCA9E";
+export const WAVE_TOKEN_CHAR_UUID = "E5C00002-B5A3-F393-E0A9-E50E24DCCA9E";
 
 // Prefix used in the BLE local name to carry the ephemeral token.
 // Format: "E:{16-char-hex-token}"

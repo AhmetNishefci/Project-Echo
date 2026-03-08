@@ -10,7 +10,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { notifySuccess } from "@/utils/haptics";
 import { playMatchChime } from "@/utils/sound";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const CONFETTI_COUNT = 30;
@@ -33,8 +33,8 @@ interface ConfettiPiece {
 
 export default function MatchScreen() {
   const router = useRouter();
-  const latestUnseenMatch = useEchoStore((s) => s.latestUnseenMatch);
-  const markMatchSeen = useEchoStore((s) => s.markMatchSeen);
+  const latestUnseenMatch = useWaveStore((s) => s.latestUnseenMatch);
+  const markMatchSeen = useWaveStore((s) => s.markMatchSeen);
 
   // Snapshot the match on mount so it doesn't disappear mid-celebration
   // if the other user removes the match (L14 fix)
@@ -82,7 +82,7 @@ export default function MatchScreen() {
     }));
   }, []);
 
-  const matchCount = useEchoStore((s) => s.matches.length);
+  const matchCount = useWaveStore((s) => s.matches.length);
 
   const milestone = MATCH_MILESTONES.includes(matchCount)
     ? matchCount === 1
@@ -107,16 +107,16 @@ export default function MatchScreen() {
   };
 
   return (
-    <View className="flex-1 bg-echo-bg items-center justify-center px-8">
+    <View className="flex-1 bg-wave-bg items-center justify-center px-8">
       {/* Confetti */}
       {confettiPieces.map((piece) => (
         <ConfettiParticle key={piece.id} piece={piece} />
       ))}
 
       {/* Celebration visual */}
-      <View className="w-32 h-32 rounded-full bg-echo-match/20 items-center justify-center mb-8">
-        <View className="w-24 h-24 rounded-full bg-echo-match/40 items-center justify-center">
-          <View className="w-16 h-16 rounded-full bg-echo-match items-center justify-center">
+      <View className="w-32 h-32 rounded-full bg-wave-match/20 items-center justify-center mb-8">
+        <View className="w-24 h-24 rounded-full bg-wave-match/40 items-center justify-center">
+          <View className="w-16 h-16 rounded-full bg-wave-match items-center justify-center">
             <Text className="text-4xl">🎉</Text>
           </View>
         </View>
@@ -124,33 +124,33 @@ export default function MatchScreen() {
 
       {/* Match text */}
       <Text className="text-4xl font-bold text-white mb-2">It's a Match!</Text>
-      <Text className="text-echo-muted text-center text-base mb-4">
+      <Text className="text-wave-muted text-center text-base mb-4">
         You both waved at each other
       </Text>
 
       {/* Milestone badge */}
       {milestone && (
-        <View className="bg-echo-primary/20 rounded-full px-4 py-1.5 -mt-1 mb-3">
-          <Text className="text-echo-primary text-sm font-semibold">{milestone}</Text>
+        <View className="bg-wave-primary/20 rounded-full px-4 py-1.5 -mt-1 mb-3">
+          <Text className="text-wave-primary text-sm font-semibold">{milestone}</Text>
         </View>
       )}
 
       {/* Instagram handle */}
       {handle ? (
         <TouchableOpacity onPress={openInstagram} className="mb-8">
-          <Text className="text-echo-accent text-xl font-semibold">
+          <Text className="text-wave-accent text-xl font-semibold">
             @{handle}
           </Text>
         </TouchableOpacity>
       ) : handleLoading ? (
         <View className="mb-8 flex-row items-center">
           <ActivityIndicator size="small" color="#666680" />
-          <Text className="text-echo-muted text-sm ml-2">
+          <Text className="text-wave-muted text-sm ml-2">
             Loading Instagram...
           </Text>
         </View>
       ) : (
-        <Text className="text-echo-muted text-sm mb-8">
+        <Text className="text-wave-muted text-sm mb-8">
           No Instagram linked
         </Text>
       )}
@@ -159,7 +159,7 @@ export default function MatchScreen() {
       {handle && (
         <TouchableOpacity
           onPress={openInstagram}
-          className="bg-echo-match py-4 px-12 rounded-2xl mb-4 flex-row items-center"
+          className="bg-wave-match py-4 px-12 rounded-2xl mb-4 flex-row items-center"
         >
           <Text className="text-white text-lg font-semibold">
             Open in Instagram
@@ -170,7 +170,7 @@ export default function MatchScreen() {
       {/* Dismiss button */}
       <TouchableOpacity
         onPress={handleDismiss}
-        className={`py-4 px-12 rounded-2xl ${handle ? "bg-echo-surface" : "bg-echo-primary"}`}
+        className={`py-4 px-12 rounded-2xl ${handle ? "bg-wave-surface" : "bg-wave-primary"}`}
       >
         <Text className="text-white text-lg font-semibold">
           Back to Radar

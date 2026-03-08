@@ -79,21 +79,21 @@ export default function BirthdayScreen() {
 
   return (
     <View
-      className="flex-1 bg-echo-bg items-center justify-center px-8"
+      className="flex-1 bg-wave-bg items-center justify-center px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
       {/* Icon */}
-      <View className="w-12 h-12 rounded-full bg-echo-surface items-center justify-center mb-6">
+      <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
         <Ionicons name="calendar-outline" size={24} color="#6c63ff" />
       </View>
 
       <Text className="text-2xl font-bold text-white mb-2">Your Birthday</Text>
-      <Text className="text-echo-muted text-sm text-center mb-8 leading-5">
+      <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
         You must be at least 18 to use Wave.{"\n"}This cannot be changed later.
       </Text>
 
       {/* Date Picker */}
-      <View className="w-full bg-echo-surface rounded-2xl overflow-hidden mb-4">
+      <View className="w-full bg-wave-surface rounded-2xl overflow-hidden mb-4">
         <DateTimePicker
           value={date}
           mode="date"
@@ -120,7 +120,7 @@ export default function BirthdayScreen() {
         onPress={handleContinue}
         disabled={saving || !hasSelected || tooYoung}
         className={`w-full rounded-2xl py-4 items-center justify-center ${
-          hasSelected && !tooYoung ? "bg-echo-primary" : "bg-echo-surface"
+          hasSelected && !tooYoung ? "bg-wave-primary" : "bg-wave-surface"
         }`}
         activeOpacity={0.8}
       >
@@ -129,7 +129,7 @@ export default function BirthdayScreen() {
         ) : (
           <Text
             className={`text-base font-semibold ${
-              hasSelected && !tooYoung ? "text-white" : "text-echo-muted"
+              hasSelected && !tooYoung ? "text-white" : "text-wave-muted"
             }`}
           >
             Continue

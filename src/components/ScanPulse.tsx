@@ -60,7 +60,7 @@ export function ScanPulse() {
       <PulseRing delay={0} />
       <PulseRing delay={800} />
       <PulseRing delay={1600} />
-      <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center border-2 border-echo-primary/40">
+      <View className="w-16 h-16 rounded-full bg-wave-primary/20 items-center justify-center border-2 border-wave-primary/40">
         <Text className="text-3xl">📡</Text>
       </View>
     </View>

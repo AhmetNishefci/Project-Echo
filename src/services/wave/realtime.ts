@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { logger } from "@/utils/logger";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -22,7 +22,7 @@ const RECONNECT_MAX_MS = 60_000;
 export function subscribeToMatches(userId: string): void {
   // If already subscribed to the same user, skip
   if (channel && currentUserId === userId) {
-    logger.echo("Already subscribed to realtime");
+    logger.wave("Already subscribed to realtime");
     return;
   }
 
@@ -37,7 +37,7 @@ function createChannel(userId: string): void {
   channel = supabase
     .channel(`user:${userId}`)
     .on("broadcast", { event: "match" }, (payload) => {
-      logger.echo("Match event received!", payload);
+      logger.wave("Match event received!", payload);
 
       const data = payload.payload as {
         match_id: string;
@@ -47,7 +47,7 @@ function createChannel(userId: string): void {
 
       if (data.match_id && data.matched_user_id) {
         // Add match immediately (without handle) so the celebration screen triggers
-        useEchoStore.getState().addMatch({
+        useWaveStore.getState().addMatch({
           matchId: data.match_id,
           matchedUserId: data.matched_user_id,
           instagramHandle: undefined,
@@ -62,28 +62,28 @@ function createChannel(userId: string): void {
       }
     })
     .on("broadcast", { event: "wave" }, (payload) => {
-      logger.echo("Incoming wave event!", payload);
+      logger.wave("Incoming wave event!", payload);
       const data = payload.payload as { waver_token?: string };
       if (data.waver_token) {
-        useEchoStore.getState().addIncomingWaveToken(data.waver_token);
+        useWaveStore.getState().addIncomingWaveToken(data.waver_token);
       }
     })
     .on("broadcast", { event: "wave_undo" }, (payload) => {
-      logger.echo("Wave undo event received", payload);
+      logger.wave("Wave undo event received", payload);
       const data = payload.payload as { waver_token?: string };
       if (data.waver_token) {
-        useEchoStore.getState().removeIncomingWaveToken(data.waver_token);
+        useWaveStore.getState().removeIncomingWaveToken(data.waver_token);
       }
     })
     .on("broadcast", { event: "match_removed" }, (payload) => {
-      logger.echo("Match removed event received", payload);
+      logger.wave("Match removed event received", payload);
       const data = payload.payload as { match_id?: string };
       if (data.match_id) {
-        useEchoStore.getState().removeMatch(data.match_id);
+        useWaveStore.getState().removeMatch(data.match_id);
       }
     })
     .subscribe((status, err) => {
-      logger.echo("Realtime subscription status", { status });
+      logger.wave("Realtime subscription status", { status });
 
       if (status === "SUBSCRIBED") {
         reconnectAttempts = 0; // Reset backoff on success
@@ -97,7 +97,7 @@ function createChannel(userId: string): void {
       if (status === "CLOSED") {
         // Channel was closed externally — only reconnect if we still want it
         if (currentUserId === userId) {
-          logger.echo("Realtime channel closed unexpectedly, reconnecting");
+          logger.wave("Realtime channel closed unexpectedly, reconnecting");
           scheduleReconnect(userId);
         }
       }
@@ -121,7 +121,7 @@ function scheduleReconnect(userId: string): void {
     reconnectTimer = null;
     if (currentUserId !== userId) return; // User changed, skip
 
-    logger.echo(`Attempting realtime reconnect (attempt ${reconnectAttempts})`);
+    logger.wave(`Attempting realtime reconnect (attempt ${reconnectAttempts})`);
     cleanupChannel();
     createChannel(userId);
   }, delay);
@@ -145,7 +145,7 @@ export function unsubscribeFromMatches(): void {
   reconnectAttempts = 0;
   currentUserId = null;
   cleanupChannel();
-  logger.echo("Unsubscribed from realtime");
+  logger.wave("Unsubscribed from realtime");
 }
 
 /**
@@ -172,8 +172,8 @@ async function fetchMatchHandle(matchId: string): Promise<void> {
 
     const row = (data as { match_id: string; instagram_handle: string | null }[] | null)?.[0];
     if (row?.instagram_handle) {
-      useEchoStore.getState().updateMatchHandle(matchId, row.instagram_handle);
-      logger.echo("Match handle fetched via RPC", { matchId, handle: row.instagram_handle });
+      useWaveStore.getState().updateMatchHandle(matchId, row.instagram_handle);
+      logger.wave("Match handle fetched via RPC", { matchId, handle: row.instagram_handle });
     }
     return;
   }

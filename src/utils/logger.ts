@@ -6,9 +6,9 @@ export const logger = {
       console.log(`[BLE] ${message}`, data !== undefined ? data : "");
     }
   },
-  echo: (message: string, data?: unknown) => {
+  wave: (message: string, data?: unknown) => {
     if (isDev) {
-      console.log(`[ECHO] ${message}`, data !== undefined ? data : "");
+      console.log(`[WAVE] ${message}`, data !== undefined ? data : "");
     }
   },
   auth: (message: string, data?: unknown) => {

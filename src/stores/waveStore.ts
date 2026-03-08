@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { WavePending, Match } from "@/types";
 
-interface EchoState {
+interface WaveState {
   currentToken: string | null;
   tokenExpiresAt: number | null;
   isRotating: boolean;
@@ -51,7 +51,7 @@ interface EchoState {
   reset: () => void;
 }
 
-export const useEchoStore = create<EchoState>()(
+export const useWaveStore = create<WaveState>()(
   persist(
     (set, get) => ({
       currentToken: null,
@@ -221,7 +221,7 @@ export const useEchoStore = create<EchoState>()(
         }),
     }),
     {
-      name: "echo-store",
+      name: "wave-store",
       storage: createJSONStorage(() => AsyncStorage),
       // Only persist matches — everything else is ephemeral session state
       partialize: (state) => ({

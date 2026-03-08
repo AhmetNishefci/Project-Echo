@@ -8,7 +8,7 @@ Pod::Spec.new do |s|
   s.summary        = 'Expo module for BLE peripheral advertising'
   s.description    = 'Expo module for BLE peripheral advertising'
   s.license        = 'MIT'
-  s.author         = 'Echo'
+  s.author         = 'Wave'
   s.homepage       = 'https://github.com/example'
   s.platforms      = { :ios => '15.1' }
   s.source         = { git: 'https://github.com/example.git' }

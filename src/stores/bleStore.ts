@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { NearbyPeer, BlePermissionStatus, BleAdapterState } from "@/types";
 import { PEER_STALE_TIMEOUT_MS } from "@/services/ble/constants";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 
 const MAX_PEERS = 200;
 
@@ -80,12 +80,12 @@ export const useBleStore = create<BleState>((set, get) => ({
     set((state) => {
       const now = Date.now();
       // Don't prune peers involved in active interactions (M2 fix)
-      const echoState = useEchoStore.getState();
+      const waveState = useWaveStore.getState();
       const protectedTokens = new Set<string>();
-      for (const token of echoState.pendingWaves.keys()) {
+      for (const token of waveState.pendingWaves.keys()) {
         protectedTokens.add(token);
       }
-      for (const token of echoState.incomingWaveTokens) {
+      for (const token of waveState.incomingWaveTokens) {
         protectedTokens.add(token);
       }
 

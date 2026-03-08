@@ -1,7 +1,7 @@
 import { View, Text, SectionList, TouchableOpacity, Linking, Share, Alert, ActionSheetIOS, Platform } from "react-native";
 import { useMemo, useEffect, useRef, useCallback } from "react";
-import { useEchoStore } from "@/stores/echoStore";
-import { removeMatchFromServer } from "@/services/echo/waves";
+import { useWaveStore } from "@/stores/waveStore";
+import { removeMatchFromServer } from "@/services/wave/waves";
 import type { Match } from "@/types";
 
 /** Group matches by date (Today, Yesterday, Earlier) */
@@ -36,7 +36,7 @@ function groupByDate(matches: Match[]) {
 }
 
 export default function HistoryScreen() {
-  const matches = useEchoStore((s) => s.matches);
+  const matches = useWaveStore((s) => s.matches);
 
   const sections = useMemo(() => groupByDate(matches), [matches]);
 
@@ -49,7 +49,7 @@ export default function HistoryScreen() {
       (m) => !m.seen && !seenIdsRef.current.has(m.matchId),
     );
     if (unseen.length > 0) {
-      const store = useEchoStore.getState();
+      const store = useWaveStore.getState();
       for (const m of unseen) {
         store.markMatchSeen(m.matchId);
         seenIdsRef.current.add(m.matchId);
@@ -69,12 +69,12 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View className="flex-1 bg-echo-bg pt-16 px-4">
+    <View className="flex-1 bg-wave-bg pt-16 px-4">
       {/* Header */}
       <View className="flex-row items-center justify-between mb-6">
         <View>
           <Text className="text-3xl font-bold text-white">Matches</Text>
-          <Text className="text-echo-muted text-sm mt-1">
+          <Text className="text-wave-muted text-sm mt-1">
             {matches.length === 0
               ? "No matches yet"
               : `${matches.length} ${matches.length === 1 ? "match" : "matches"} total`}
@@ -84,19 +84,19 @@ export default function HistoryScreen() {
 
       {matches.length === 0 ? (
         <View className="flex-1 items-center justify-center -mt-20">
-          <View className="w-20 h-20 rounded-full bg-echo-surface items-center justify-center mb-4">
+          <View className="w-20 h-20 rounded-full bg-wave-surface items-center justify-center mb-4">
             <Text className="text-4xl">👋</Text>
           </View>
           <Text className="text-white text-lg font-semibold mb-2">
             No matches yet
           </Text>
-          <Text className="text-echo-muted text-center text-sm px-8">
+          <Text className="text-wave-muted text-center text-sm px-8">
             When you and someone nearby both wave at each other, you'll match
             and they'll appear here.
           </Text>
           <TouchableOpacity
             onPress={handleInvite}
-            className="mt-6 bg-echo-surface border border-echo-muted rounded-2xl py-3 px-6 flex-row items-center"
+            className="mt-6 bg-wave-surface border border-wave-muted rounded-2xl py-3 px-6 flex-row items-center"
           >
             <Text className="text-lg mr-2">📲</Text>
             <Text className="text-white font-semibold text-sm">
@@ -109,7 +109,7 @@ export default function HistoryScreen() {
           sections={sections}
           keyExtractor={(item) => item.matchId}
           renderSectionHeader={({ section }) => (
-            <Text className="text-echo-muted text-xs uppercase tracking-wider mb-2 mt-4">
+            <Text className="text-wave-muted text-xs uppercase tracking-wider mb-2 mt-4">
               {section.title}
             </Text>
           )}
@@ -204,11 +204,11 @@ function MatchRow({ match }: { match: Match }) {
       onPress={handle ? openInstagram : showActions}
       onLongPress={showActions}
       activeOpacity={0.7}
-      className="bg-echo-surface rounded-2xl p-4 mb-3 flex-row items-center"
+      className="bg-wave-surface rounded-2xl p-4 mb-3 flex-row items-center"
     >
       {/* Avatar */}
-      <View className="w-12 h-12 rounded-full bg-echo-match/20 items-center justify-center mr-4">
-        <Text className="text-echo-match text-lg">🤝</Text>
+      <View className="w-12 h-12 rounded-full bg-wave-match/20 items-center justify-center mr-4">
+        <Text className="text-wave-match text-lg">🤝</Text>
       </View>
 
       {/* Info */}
@@ -218,7 +218,7 @@ function MatchRow({ match }: { match: Match }) {
             <Text className="text-white font-semibold text-base">
               @{handle}
             </Text>
-            <Text className="text-echo-muted text-xs mt-1">
+            <Text className="text-wave-muted text-xs mt-1">
               Matched at {time}
             </Text>
           </>
@@ -227,7 +227,7 @@ function MatchRow({ match }: { match: Match }) {
             <Text className="text-white font-semibold text-base">
               Someone nearby
             </Text>
-            <Text className="text-echo-muted text-xs mt-1">
+            <Text className="text-wave-muted text-xs mt-1">
               Matched at {time} · No Instagram linked
             </Text>
           </>
@@ -236,9 +236,9 @@ function MatchRow({ match }: { match: Match }) {
 
       {/* Instagram indicator or unseen dot */}
       {handle ? (
-        <Text className="text-echo-muted text-xs">📸</Text>
+        <Text className="text-wave-muted text-xs">📸</Text>
       ) : !match.seen ? (
-        <View className="w-3 h-3 rounded-full bg-echo-match" />
+        <View className="w-3 h-3 rounded-full bg-wave-match" />
       ) : null}
     </TouchableOpacity>
   );

@@ -17,7 +17,7 @@ class ExoBlePeripheralModule : Module() {
 
     companion object {
         private const val TAG = "ExoBlePeripheral"
-        val ECHO_SERVICE_UUID: UUID = UUID.fromString("E5C00001-B5A3-F393-E0A9-E50E24DCCA9E")
+        val WAVE_SERVICE_UUID: UUID = UUID.fromString("E5C00001-B5A3-F393-E0A9-E50E24DCCA9E")
     }
 
     private var bluetoothManager: BluetoothManager? = null
@@ -73,7 +73,7 @@ class ExoBlePeripheralModule : Module() {
 
                 val data = AdvertiseData.Builder()
                     .setIncludeDeviceName(true)
-                    .addServiceUuid(ParcelUuid(ECHO_SERVICE_UUID))
+                    .addServiceUuid(ParcelUuid(WAVE_SERVICE_UUID))
                     .build()
 
                 advertiser?.startAdvertising(settings, data, advertiseCallback)
@@ -111,7 +111,7 @@ class ExoBlePeripheralModule : Module() {
 
                     val data = AdvertiseData.Builder()
                         .setIncludeDeviceName(true)
-                        .addServiceUuid(ParcelUuid(ECHO_SERVICE_UUID))
+                        .addServiceUuid(ParcelUuid(WAVE_SERVICE_UUID))
                         .build()
 
                     advertiser?.startAdvertising(settings, data, advertiseCallback)

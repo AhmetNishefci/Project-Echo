@@ -10,7 +10,7 @@ let Haptics: typeof import("expo-haptics") | null = null;
 try {
   Haptics = require("expo-haptics");
 } catch {
-  logger.echo("expo-haptics not available, haptics disabled");
+  logger.wave("expo-haptics not available, haptics disabled");
 }
 
 export async function impactLight(): Promise<void> {

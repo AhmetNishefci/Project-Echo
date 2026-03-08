@@ -1,5 +1,5 @@
 import { useBleStore } from "@/stores/bleStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import type { NearbyPeer } from "@/types";
 
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
@@ -116,7 +116,7 @@ function generatePeers(): NearbyPeer[] {
  */
 export function seedFakePeers(): void {
   const store = useBleStore.getState();
-  const echoStore = useEchoStore.getState();
+  const waveStore = useWaveStore.getState();
 
   const fakePeers = generatePeers();
 
@@ -138,14 +138,14 @@ export function seedFakePeers(): void {
   }, 10_000);
 
   // Simulate some interactions across different zones:
-  echoStore.addIncomingWaveToken(fakePeers[0].ephemeralToken);  // HERE zone
-  echoStore.addIncomingWaveToken(fakePeers[3].ephemeralToken);  // HERE zone
-  echoStore.addIncomingWaveToken(fakePeers[6].ephemeralToken);  // HERE zone
-  echoStore.addIncomingWaveToken(fakePeers[18].ephemeralToken); // CLOSE zone
-  echoStore.addIncomingWaveToken(fakePeers[25].ephemeralToken); // CLOSE zone
-  echoStore.addPendingWave(fakePeers[4].ephemeralToken);
-  echoStore.addMatchedToken(fakePeers[8].ephemeralToken, "emma.w");
-  echoStore.addMatchedToken(fakePeers[12].ephemeralToken, "jake_adventures");
+  waveStore.addIncomingWaveToken(fakePeers[0].ephemeralToken);  // HERE zone
+  waveStore.addIncomingWaveToken(fakePeers[3].ephemeralToken);  // HERE zone
+  waveStore.addIncomingWaveToken(fakePeers[6].ephemeralToken);  // HERE zone
+  waveStore.addIncomingWaveToken(fakePeers[18].ephemeralToken); // CLOSE zone
+  waveStore.addIncomingWaveToken(fakePeers[25].ephemeralToken); // CLOSE zone
+  waveStore.addPendingWave(fakePeers[4].ephemeralToken);
+  waveStore.addMatchedToken(fakePeers[8].ephemeralToken, "emma.w");
+  waveStore.addMatchedToken(fakePeers[12].ephemeralToken, "jake_adventures");
 }
 
 /**
@@ -157,7 +157,7 @@ export function clearFakePeers(): void {
     keepAliveInterval = null;
   }
   useBleStore.getState().clearPeers();
-  useEchoStore.getState().clearAllPendingWaves();
-  useEchoStore.getState().resetIncomingWaveTokens();
-  useEchoStore.getState().clearMatchedTokens();
+  useWaveStore.getState().clearAllPendingWaves();
+  useWaveStore.getState().resetIncomingWaveTokens();
+  useWaveStore.getState().clearMatchedTokens();
 }

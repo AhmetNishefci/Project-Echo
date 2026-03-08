@@ -36,7 +36,7 @@ export default function LoginScreen() {
 
   return (
     <View
-      className="flex-1 bg-echo-bg items-center justify-center px-8"
+      className="flex-1 bg-wave-bg items-center justify-center px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
         {/* Glow behind hand icon */}
@@ -64,7 +64,7 @@ export default function LoginScreen() {
         <View className="mb-12 items-center">
           {STEPS.map((step, i) => (
             <View key={i} className="flex-row items-center mb-5">
-              <View className="w-10 h-10 rounded-full bg-echo-surface items-center justify-center mr-3">
+              <View className="w-10 h-10 rounded-full bg-wave-surface items-center justify-center mr-3">
                 <Ionicons name={step.icon} size={20} color="#6c63ff" />
               </View>
               <Text className="text-white text-sm">{step.text}</Text>
@@ -76,7 +76,7 @@ export default function LoginScreen() {
         <TouchableOpacity
           onPress={handleSignIn}
           disabled={loading}
-          className="w-full bg-echo-primary rounded-2xl py-4 flex-row items-center justify-center"
+          className="w-full bg-wave-primary rounded-2xl py-4 flex-row items-center justify-center"
           activeOpacity={0.8}
         >
           {loading ? (
@@ -91,7 +91,7 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        <Text className="text-echo-muted text-xs text-center mt-4 leading-5">
+        <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
           Your identity stays hidden until a mutual match.
         </Text>
     </View>

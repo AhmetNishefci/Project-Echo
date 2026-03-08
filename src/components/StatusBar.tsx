@@ -16,8 +16,8 @@ export function BleStatusBar({
 }: BleStatusBarProps) {
   if (error) {
     return (
-      <View className="bg-echo-danger/20 rounded-xl px-4 py-2 mb-4">
-        <Text className="text-echo-danger text-sm">{error}</Text>
+      <View className="bg-wave-danger/20 rounded-xl px-4 py-2 mb-4">
+        <Text className="text-wave-danger text-sm">{error}</Text>
       </View>
     );
   }
@@ -34,8 +34,8 @@ export function BleStatusBar({
 
   if (adapterState === "Unauthorized") {
     return (
-      <View className="bg-echo-danger/20 rounded-xl px-4 py-2 mb-4">
-        <Text className="text-echo-danger text-sm">
+      <View className="bg-wave-danger/20 rounded-xl px-4 py-2 mb-4">
+        <Text className="text-wave-danger text-sm">
           Bluetooth permission denied. Open Settings to allow access.
         </Text>
       </View>
@@ -44,8 +44,8 @@ export function BleStatusBar({
 
   if (adapterState === "Unsupported") {
     return (
-      <View className="bg-echo-danger/20 rounded-xl px-4 py-2 mb-4">
-        <Text className="text-echo-danger text-sm">
+      <View className="bg-wave-danger/20 rounded-xl px-4 py-2 mb-4">
+        <Text className="text-wave-danger text-sm">
           This device does not support Bluetooth Low Energy.
         </Text>
       </View>
@@ -57,18 +57,18 @@ export function BleStatusBar({
   }
 
   return (
-    <View className="flex-row items-center bg-echo-surface rounded-xl px-4 py-2 mb-4">
+    <View className="flex-row items-center bg-wave-surface rounded-xl px-4 py-2 mb-4">
       <View className="flex-row items-center flex-1">
         {isScanning && (
           <View className="flex-row items-center mr-4">
-            <View className="w-2 h-2 rounded-full bg-echo-accent mr-2" />
-            <Text className="text-echo-accent text-xs">Scanning</Text>
+            <View className="w-2 h-2 rounded-full bg-wave-accent mr-2" />
+            <Text className="text-wave-accent text-xs">Scanning</Text>
           </View>
         )}
         {isAdvertising && (
           <View className="flex-row items-center">
-            <View className="w-2 h-2 rounded-full bg-echo-primary mr-2" />
-            <Text className="text-echo-primary text-xs">Broadcasting</Text>
+            <View className="w-2 h-2 rounded-full bg-wave-primary mr-2" />
+            <Text className="text-wave-primary text-xs">Broadcasting</Text>
           </View>
         )}
       </View>

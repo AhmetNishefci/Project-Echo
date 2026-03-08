@@ -1,5 +1,5 @@
 import { supabase } from "../supabase";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import type { WaveResult, Match } from "@/types";
 import { logger } from "@/utils/logger";
 import { getFreshSession } from "./session";
@@ -20,7 +20,7 @@ export async function sendWave(
   targetEphemeralToken: string,
 ): Promise<SendWaveResult> {
   try {
-    useEchoStore.getState().setWaving(true);
+    useWaveStore.getState().setWaving(true);
 
     const session = await getFreshSession();
 
@@ -50,7 +50,7 @@ export async function sendWave(
       reason?: string;
     };
 
-    logger.echo("Wave result", result);
+    logger.wave("Wave result", result);
 
     if (result.status === "match" && result.match_id && result.matched_user_id) {
       const match: Match = {
@@ -62,7 +62,7 @@ export async function sendWave(
       };
       // Store update: caller can also do this, but we keep it here for
       // backward compatibility and because match screen routing depends on it
-      useEchoStore.getState().addMatch(match);
+      useWaveStore.getState().addMatch(match);
       return { status: "match", match };
     }
 
@@ -79,7 +79,7 @@ export async function sendWave(
           createdAt: new Date().toISOString(),
           seen: true,
         };
-        useEchoStore.getState().addMatch(match);
+        useWaveStore.getState().addMatch(match);
         return { status: "already_matched", match };
       }
       return { status: "already_matched" };
@@ -94,7 +94,7 @@ export async function sendWave(
     logger.error("Wave error", error);
     return { status: "error" };
   } finally {
-    useEchoStore.getState().setWaving(false);
+    useWaveStore.getState().setWaving(false);
   }
 }
 
@@ -130,12 +130,12 @@ export async function undoWave(
     // comes back as `data`, not `error` (C8 fix)
     const result = data as { status?: string; reason?: string } | null;
     if (result?.status === "error" && result?.reason === "undo_expired") {
-      logger.echo("Undo failed: wave already consumed or expired");
+      logger.wave("Undo failed: wave already consumed or expired");
       return false;
     }
 
-    useEchoStore.getState().removePendingWave(targetEphemeralToken);
-    logger.echo("Wave undone", { token: targetEphemeralToken.substring(0, 8) });
+    useWaveStore.getState().removePendingWave(targetEphemeralToken);
+    logger.wave("Wave undone", { token: targetEphemeralToken.substring(0, 8) });
     return true;
   } catch (error) {
     logger.error("Undo wave error", error);
@@ -165,8 +165,8 @@ export async function removeMatchFromServer(matchId: string): Promise<boolean> {
       return false;
     }
 
-    useEchoStore.getState().removeMatch(matchId);
-    logger.echo("Match removed", { matchId });
+    useWaveStore.getState().removeMatch(matchId);
+    logger.wave("Match removed", { matchId });
     return true;
   } catch (error) {
     logger.error("Remove match error", error);

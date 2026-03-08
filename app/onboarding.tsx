@@ -58,26 +58,26 @@ export default function OnboardingScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-echo-bg"
+      className="flex-1 bg-wave-bg"
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View
         className="flex-1 items-center justify-center px-8"
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
-        <View className="w-12 h-12 rounded-full bg-echo-surface items-center justify-center mb-6">
+        <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
           <Ionicons name="logo-instagram" size={24} color="#6c63ff" />
         </View>
 
         <Text className="text-2xl font-bold text-white mb-2">
           Add your Instagram
         </Text>
-        <Text className="text-echo-muted text-sm text-center mb-8 leading-5">
+        <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
           When you match with someone, you'll both see each other's Instagram username so you can connect.
         </Text>
 
-        <View className="w-full bg-echo-surface rounded-2xl px-4 flex-row items-center mb-4" style={{ height: 52 }}>
-          <Text className="text-echo-muted text-base" style={{ lineHeight: 20 }}>@</Text>
+        <View className="w-full bg-wave-surface rounded-2xl px-4 flex-row items-center mb-4" style={{ height: 52 }}>
+          <Text className="text-wave-muted text-base" style={{ lineHeight: 20 }}>@</Text>
           <TextInput
             value={handle}
             onChangeText={setHandle}
@@ -97,20 +97,20 @@ export default function OnboardingScreen() {
           onPress={handleContinue}
           disabled={saving || !canContinue}
           className={`w-full rounded-2xl py-4 items-center justify-center ${
-            canContinue ? "bg-echo-primary" : "bg-echo-surface"
+            canContinue ? "bg-wave-primary" : "bg-wave-surface"
           }`}
           activeOpacity={0.8}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />
           ) : (
-            <Text className={`text-base font-semibold ${canContinue ? "text-white" : "text-echo-muted"}`}>
+            <Text className={`text-base font-semibold ${canContinue ? "text-white" : "text-wave-muted"}`}>
               Continue
             </Text>
           )}
         </TouchableOpacity>
 
-        <Text className="text-echo-muted text-xs text-center mt-4 leading-5">
+        <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
           Your username is only revealed after a mutual match.
         </Text>
       </View>

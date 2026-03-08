@@ -10,13 +10,13 @@ let Device: typeof import("expo-device") | null = null;
 try {
   Notifications = require("expo-notifications");
 } catch {
-  logger.echo("expo-notifications not available");
+  logger.wave("expo-notifications not available");
 }
 
 try {
   Device = require("expo-device");
 } catch {
-  logger.echo("expo-device not available");
+  logger.wave("expo-device not available");
 }
 
 /**
@@ -42,13 +42,13 @@ try {
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   if (!Notifications || !Device) {
-    logger.echo("Push notifications not available (native modules missing)");
+    logger.wave("Push notifications not available (native modules missing)");
     return null;
   }
 
   // Push notifications only work on physical devices
   if (!Device.isDevice) {
-    logger.echo("Push notifications require a physical device");
+    logger.wave("Push notifications require a physical device");
     return null;
   }
 
@@ -63,7 +63,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (finalStatus !== "granted") {
-    logger.echo("Push notification permission not granted");
+    logger.wave("Push notification permission not granted");
     return null;
   }
 
@@ -80,7 +80,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
       const pushToken = tokenData.data; // Format: ExponentPushToken[xxx]
       const platform = Platform.OS; // 'ios' or 'android'
 
-      logger.echo("Got device push token", {
+      logger.wave("Got device push token", {
         token: pushToken.substring(0, 12) + "...",
         platform,
       });
@@ -101,14 +101,14 @@ export async function registerForPushNotifications(): Promise<string | null> {
       if (error) {
         logger.error("Failed to save push token to Supabase", error);
       } else {
-        logger.echo("Push token registered with Supabase");
+        logger.wave("Push token registered with Supabase");
       }
 
       return pushToken;
     } catch (err: any) {
       const isApsError = err?.message?.includes("aps-environment");
       if (isApsError && attempt < MAX_RETRIES) {
-        logger.echo(`Push token attempt ${attempt} failed (aps-environment), retrying in ${RETRY_DELAY}ms...`);
+        logger.wave(`Push token attempt ${attempt} failed (aps-environment), retrying in ${RETRY_DELAY}ms...`);
         await new Promise((r) => setTimeout(r, RETRY_DELAY));
         continue;
       }
@@ -133,7 +133,7 @@ export async function unregisterPushToken(): Promise<void> {
       .eq("user_id", userId)
       .eq("platform", Platform.OS);
 
-    logger.echo("Push token unregistered");
+    logger.wave("Push token unregistered");
   } catch (err) {
     logger.error("Failed to unregister push token", err);
   }

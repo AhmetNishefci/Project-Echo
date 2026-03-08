@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { AppState, AppStateStatus } from "react-native";
-import { echoBleManager } from "@/services/ble/bleManager";
+import { waveBleManager } from "@/services/ble/bleManager";
 import { useBleStore } from "@/stores/bleStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
-import { fetchNewToken } from "@/services/echo/ephemeralId";
+import { fetchNewToken } from "@/services/wave/ephemeralId";
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 import { logger } from "@/utils/logger";
 
@@ -37,20 +37,20 @@ export function useBleLifecycle() {
           wasRunning.current = false;
 
           // Check if ephemeral token expired while backgrounded
-          const { tokenExpiresAt } = useEchoStore.getState();
+          const { tokenExpiresAt } = useWaveStore.getState();
           if (!tokenExpiresAt || tokenExpiresAt < Date.now()) {
-            logger.echo("Token expired during background — fetching new one before restarting scan");
+            logger.wave("Token expired during background — fetching new one before restarting scan");
             fetchNewToken().then((result) => {
               if (result) {
-                echoBleManager.rotateToken(result.token).catch((e) =>
+                waveBleManager.rotateToken(result.token).catch((e) =>
                   logger.error("Failed to rotate token on foreground", e),
                 );
               }
-              echoBleManager.restartScanCycle();
+              waveBleManager.restartScanCycle();
               logger.ble("App foregrounded — scan cycle restarted after token refresh");
             });
           } else {
-            echoBleManager.restartScanCycle();
+            waveBleManager.restartScanCycle();
             logger.ble("App foregrounded — scan cycle restarted at full speed");
           }
 

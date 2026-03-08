@@ -1,9 +1,9 @@
 import ExpoModulesCore
 import CoreBluetooth
 
-let ECHO_SERVICE_UUID = CBUUID(string: "E5C00001-B5A3-F393-E0A9-E50E24DCCA9E")
-let ECHO_TOKEN_CHAR_UUID = CBUUID(string: "E5C00002-B5A3-F393-E0A9-E50E24DCCA9E")
-let RESTORE_ID = "echo-peripheral"
+let WAVE_SERVICE_UUID = CBUUID(string: "E5C00001-B5A3-F393-E0A9-E50E24DCCA9E")
+let WAVE_TOKEN_CHAR_UUID = CBUUID(string: "E5C00002-B5A3-F393-E0A9-E50E24DCCA9E")
+let RESTORE_ID = "wave-peripheral"
 
 class BlePeripheralDelegate: NSObject, CBPeripheralManagerDelegate {
     var onPoweredOn: (() -> Void)?
@@ -39,7 +39,7 @@ class BlePeripheralDelegate: NSObject, CBPeripheralManagerDelegate {
         _ peripheral: CBPeripheralManager,
         didReceiveRead request: CBATTRequest
     ) {
-        if request.characteristic.uuid == ECHO_TOKEN_CHAR_UUID {
+        if request.characteristic.uuid == WAVE_TOKEN_CHAR_UUID {
             let tokenData = currentToken.data(using: .utf8) ?? Data()
             if request.offset > tokenData.count {
                 peripheral.respond(to: request, withResult: .invalidOffset)
@@ -80,13 +80,13 @@ class BlePeripheralDelegate: NSObject, CBPeripheralManagerDelegate {
 
     private func addGattService(to manager: CBPeripheralManager) {
         let characteristic = CBMutableCharacteristic(
-            type: ECHO_TOKEN_CHAR_UUID,
+            type: WAVE_TOKEN_CHAR_UUID,
             properties: [.read],
             value: nil,  // nil = dynamic value, delegate handles reads
             permissions: [.readable]
         )
 
-        let service = CBMutableService(type: ECHO_SERVICE_UUID, primary: true)
+        let service = CBMutableService(type: WAVE_SERVICE_UUID, primary: true)
         service.characteristics = [characteristic]
         manager.add(service)
     }
@@ -149,7 +149,7 @@ public class ExoBlePeripheralModule: Module {
             }
             manager.stopAdvertising()
             manager.startAdvertising([
-                CBAdvertisementDataServiceUUIDsKey: [ECHO_SERVICE_UUID],
+                CBAdvertisementDataServiceUUIDsKey: [WAVE_SERVICE_UUID],
                 CBAdvertisementDataLocalNameKey: "E:\(token)"
             ])
             promise.resolve(nil)
@@ -170,7 +170,7 @@ public class ExoBlePeripheralModule: Module {
         self.delegate.currentToken = token
         manager.stopAdvertising()
         manager.startAdvertising([
-            CBAdvertisementDataServiceUUIDsKey: [ECHO_SERVICE_UUID],
+            CBAdvertisementDataServiceUUIDsKey: [WAVE_SERVICE_UUID],
             CBAdvertisementDataLocalNameKey: "E:\(token)"
         ])
         promise.resolve(nil)

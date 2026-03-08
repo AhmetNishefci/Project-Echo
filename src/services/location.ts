@@ -61,7 +61,7 @@ export async function getCurrentLocation(): Promise<{
   try {
     const hasPermission = await hasLocationPermission();
     if (!hasPermission) {
-      logger.echo("Location permission not granted, skipping");
+      logger.wave("Location permission not granted, skipping");
       return null;
     }
 
@@ -114,7 +114,7 @@ export async function updateLocationOnServer(
       notified_count: number;
     };
 
-    logger.echo("Location updated", {
+    logger.wave("Location updated", {
       nearbyCount: result.nearby_count,
       notifiedCount: result.notified_count,
     });

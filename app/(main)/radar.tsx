@@ -12,10 +12,10 @@ import {
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { impactMedium, impactLight, notifySuccess, notifyError } from "@/utils/haptics";
 import { useBleStore } from "@/stores/bleStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
-import { echoBleManager } from "@/services/ble/bleManager";
-import { sendWave, undoWave } from "@/services/echo/waves";
+import { waveBleManager } from "@/services/ble/bleManager";
+import { sendWave, undoWave } from "@/services/wave/waves";
 import { PermissionGate } from "@/components/PermissionGate";
 import { BleStatusBar } from "@/components/StatusBar";
 import { Toast } from "@/components/Toast";
@@ -35,7 +35,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
   CLOSE: { label: "Close By", color: "text-blue-400" },
-  NEARBY: { label: "Nearby", color: "text-echo-muted" },
+  NEARBY: { label: "Nearby", color: "text-wave-muted" },
 };
 
 const PEER_DISPLAY_CAP = 50;
@@ -58,9 +58,9 @@ export default function RadarScreen() {
     error,
     proximityAlertPending,
   } = useBleStore();
-  const { currentToken } = useEchoStore();
-  const rawIncomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
-  const matchedTokens = useEchoStore((s) => s.matchedTokens);
+  const { currentToken } = useWaveStore();
+  const rawIncomingWaveTokens = useWaveStore((s) => s.incomingWaveTokens);
+  const matchedTokens = useWaveStore((s) => s.matchedTokens);
   const genderPreference = useAuthStore((s) => s.genderPreference);
   const { isConnected } = useNetworkStatus();
 
@@ -100,7 +100,7 @@ export default function RadarScreen() {
     setRefreshing(true);
     // Restart scan cycle instead of clearing all peers — avoids jarring
     // empty list (M10 fix). Peers naturally repopulate as they're rediscovered.
-    echoBleManager.restartScanCycle();
+    waveBleManager.restartScanCycle();
     // Brief pause so the user sees the refresh indicator
     await new Promise((r) => setTimeout(r, 800));
     setRefreshing(false);
@@ -168,7 +168,7 @@ export default function RadarScreen() {
     startingRef.current = true;
     setIsStarting(true);
     try {
-      const result = await echoBleManager.requestPermissions();
+      const result = await waveBleManager.requestPermissions();
       if (result === "blocked") {
         showPermissionBlockedAlert();
         return;
@@ -181,11 +181,11 @@ export default function RadarScreen() {
         return;
       }
 
-      let token = useEchoStore.getState().currentToken;
+      let token = useWaveStore.getState().currentToken;
       if (!token) {
         for (let i = 0; i < 16; i++) {
           await new Promise((r) => setTimeout(r, 500));
-          token = useEchoStore.getState().currentToken;
+          token = useWaveStore.getState().currentToken;
           if (token) break;
         }
       }
@@ -198,7 +198,7 @@ export default function RadarScreen() {
         return;
       }
 
-      await echoBleManager.start();
+      await waveBleManager.start();
       impactLight();
 
       // Send location to server for proximity notifications (non-blocking)
@@ -241,18 +241,18 @@ export default function RadarScreen() {
   }, [showProximityHint, nearbyPeers]);
 
   const handleStopDiscovery = useCallback(async () => {
-    await echoBleManager.stop();
+    await waveBleManager.stop();
   }, []);
 
   const handleWave = useCallback(async (peer: NearbyPeer) => {
-    const store = useEchoStore.getState();
+    const store = useWaveStore.getState();
     if (store.hasPendingWaveTo(peer.ephemeralToken)) return;
 
     impactMedium();
     playWaveSent();
     store.addPendingWave(peer.ephemeralToken);
 
-    logger.echo("Sending wave to peer", {
+    logger.wave("Sending wave to peer", {
       token: peer.ephemeralToken.substring(0, 8),
     });
 
@@ -274,7 +274,7 @@ export default function RadarScreen() {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
       notifySuccess();
-      logger.echo("Match from wave!");
+      logger.wave("Match from wave!");
     } else if (result.status === "pending") {
       // Store userId → token mapping so realtime match events can bridge to radar
       if (result.targetUserId) {
@@ -292,7 +292,7 @@ export default function RadarScreen() {
     const success = await undoWave(targetToken);
     undoingRef.current = null;
     if (success) {
-      useEchoStore.getState().removePendingWaveByToken(targetToken);
+      useWaveStore.getState().removePendingWaveByToken(targetToken);
       setToast({ message: "Wave undone" });
     } else {
       notifyError();
@@ -324,7 +324,7 @@ export default function RadarScreen() {
         <Text className={`text-lg font-bold ${section.color}`}>
           {section.title}
         </Text>
-        <Text className="text-echo-muted text-sm ml-2">
+        <Text className="text-wave-muted text-sm ml-2">
           {section.data.length}{" "}
           {section.data.length === 1 ? "person" : "people"}
         </Text>
@@ -344,12 +344,12 @@ export default function RadarScreen() {
   }
 
   return (
-    <View className="flex-1 bg-echo-bg pt-16 px-4">
+    <View className="flex-1 bg-wave-bg pt-16 px-4">
       {/* Header */}
       <View className="flex-row items-center justify-between mb-4">
         <View>
           <Text className="text-3xl font-bold text-white">Wave</Text>
-          <Text className="text-echo-muted text-sm mt-1">
+          <Text className="text-wave-muted text-sm mt-1">
             {totalPeers > 0
               ? `${totalPeers} ${totalPeers === 1 ? "person" : "people"} nearby`
               : isDiscoveryActive
@@ -397,7 +397,7 @@ export default function RadarScreen() {
             <Text className="text-yellow-400 font-semibold text-sm">
               No internet connection
             </Text>
-            <Text className="text-echo-muted text-xs mt-0.5">
+            <Text className="text-wave-muted text-xs mt-0.5">
               You can see nearby people, but waves need internet to send.
             </Text>
           </View>
@@ -409,7 +409,7 @@ export default function RadarScreen() {
         <Animated.View
           entering={FadeIn.duration(300)}
           exiting={FadeOut.duration(200)}
-          className="bg-echo-wave/20 border border-echo-wave/40 rounded-2xl py-3 px-4 mb-4 flex-row items-center"
+          className="bg-wave-wave/20 border border-wave-wave/40 rounded-2xl py-3 px-4 mb-4 flex-row items-center"
         >
           <Text className="text-2xl mr-3">👋</Text>
           <View className="flex-1">
@@ -418,7 +418,7 @@ export default function RadarScreen() {
                 ? "Someone nearby waved at you!"
                 : `${incomingWaveTokens.length} people nearby waved at you!`}
             </Text>
-            <Text className="text-echo-muted text-xs mt-0.5">
+            <Text className="text-wave-muted text-xs mt-0.5">
               Wave back to match and see their Instagram
             </Text>
           </View>
@@ -430,7 +430,7 @@ export default function RadarScreen() {
         <TouchableOpacity
           onPress={handleStartDiscovery}
           disabled={isStarting}
-          className={`py-4 rounded-2xl items-center mb-4 ${isStarting ? "bg-echo-primary/70" : "bg-echo-primary"}`}
+          className={`py-4 rounded-2xl items-center mb-4 ${isStarting ? "bg-wave-primary/70" : "bg-wave-primary"}`}
         >
           {isStarting ? (
             <View className="flex-row items-center">
@@ -448,9 +448,9 @@ export default function RadarScreen() {
       ) : (
         <TouchableOpacity
           onPress={handleStopDiscovery}
-          className="bg-echo-surface py-4 rounded-2xl items-center mb-4 border border-echo-muted"
+          className="bg-wave-surface py-4 rounded-2xl items-center mb-4 border border-wave-muted"
         >
-          <Text className="text-echo-muted text-lg font-semibold">
+          <Text className="text-wave-muted text-lg font-semibold">
             Stop Discovery
           </Text>
         </TouchableOpacity>
@@ -476,9 +476,9 @@ export default function RadarScreen() {
           !showAllPeers && totalPeers > PEER_DISPLAY_CAP ? (
             <TouchableOpacity
               onPress={() => setShowAllPeers(true)}
-              className="bg-echo-surface rounded-2xl py-3 items-center mt-2 mb-4"
+              className="bg-wave-surface rounded-2xl py-3 items-center mt-2 mb-4"
             >
-              <Text className="text-echo-accent text-sm font-semibold">
+              <Text className="text-wave-accent text-sm font-semibold">
                 Show {totalPeers - PEER_DISPLAY_CAP} more {totalPeers - PEER_DISPLAY_CAP === 1 ? "person" : "people"}
               </Text>
             </TouchableOpacity>
@@ -494,12 +494,12 @@ export default function RadarScreen() {
                 Looking for people...
               </Text>
               {showProximityHint ? (
-                <Text className="text-echo-muted text-sm text-center px-8 mb-8">
+                <Text className="text-wave-muted text-sm text-center px-8 mb-8">
                   Wave users were detected in your area. Keep scanning — they
                   may appear as you move around.
                 </Text>
               ) : (
-                <Text className="text-echo-muted text-sm text-center px-8 mb-8">
+                <Text className="text-wave-muted text-sm text-center px-8 mb-8">
                   Wave at someone nearby. If they wave back, you'll match and
                   see each other's Instagram!
                 </Text>
@@ -508,7 +508,7 @@ export default function RadarScreen() {
               {/* Invite CTA */}
               <TouchableOpacity
                 onPress={handleInvite}
-                className="bg-echo-surface border border-echo-muted rounded-2xl py-3 px-6 flex-row items-center"
+                className="bg-wave-surface border border-wave-muted rounded-2xl py-3 px-6 flex-row items-center"
               >
                 <Text className="text-lg mr-2">📲</Text>
                 <Text className="text-white font-semibold text-sm">
@@ -522,7 +522,7 @@ export default function RadarScreen() {
               <View className="w-36 h-36 items-center justify-center">
                 <View className="absolute w-36 h-36 rounded-full border-2 border-indigo-500/15" />
                 <View className="absolute w-24 h-24 rounded-full border-2 border-indigo-500/20" />
-                <View className="w-16 h-16 rounded-full bg-echo-primary/20 items-center justify-center border-2 border-echo-primary/40">
+                <View className="w-16 h-16 rounded-full bg-wave-primary/20 items-center justify-center border-2 border-wave-primary/40">
                   <Text className="text-3xl">📡</Text>
                 </View>
               </View>
@@ -530,8 +530,8 @@ export default function RadarScreen() {
               <Text className="text-white text-lg font-bold mb-2 mt-6">
                 Discover People Nearby
               </Text>
-              <Text className="text-echo-muted text-sm text-center px-8 leading-5">
-                Tap <Text className="text-echo-primary font-semibold">Start Discovery</Text> to
+              <Text className="text-wave-muted text-sm text-center px-8 leading-5">
+                Tap <Text className="text-wave-primary font-semibold">Start Discovery</Text> to
                 find people around you. Wave at someone — if they wave back,
                 you'll match and see each other's Instagram.
               </Text>
@@ -539,7 +539,7 @@ export default function RadarScreen() {
               {/* Invite CTA */}
               <TouchableOpacity
                 onPress={handleInvite}
-                className="bg-echo-surface border border-echo-muted rounded-2xl py-3 px-6 flex-row items-center mt-8"
+                className="bg-wave-surface border border-wave-muted rounded-2xl py-3 px-6 flex-row items-center mt-8"
               >
                 <Text className="text-lg mr-2">📲</Text>
                 <Text className="text-white font-semibold text-sm">

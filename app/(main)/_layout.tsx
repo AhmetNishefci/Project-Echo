@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { echoBleManager } from "@/services/ble/bleManager";
-import { useEchoStore } from "@/stores/echoStore";
+import { waveBleManager } from "@/services/ble/bleManager";
+import { useWaveStore } from "@/stores/waveStore";
 import { useBleLifecycle } from "@/hooks/useBleLifecycle";
 import { useEphemeralRotation } from "@/hooks/useEphemeralRotation";
 import { useMatchListener } from "@/hooks/useMatchListener";
@@ -12,14 +12,14 @@ import { preloadSounds } from "@/utils/sound";
 
 export default function MainLayout() {
   const router = useRouter();
-  const latestUnseenMatch = useEchoStore((s) => s.latestUnseenMatch);
-  const unseenCount = useEchoStore(
+  const latestUnseenMatch = useWaveStore((s) => s.latestUnseenMatch);
+  const unseenCount = useWaveStore(
     (s) => s.matches.filter((m) => !m.seen).length,
   );
 
   // Initialize BLE manager on mount
   useEffect(() => {
-    echoBleManager.initialize().catch((error) => {
+    waveBleManager.initialize().catch((error) => {
       logger.error("Failed to initialize BLE manager", error);
     });
 
@@ -28,14 +28,14 @@ export default function MainLayout() {
     // Recover unseen matches from persisted storage (M3 fix).
     // If the app crashed or was killed before the user saw the match
     // celebration, re-trigger it on next launch.
-    const matches = useEchoStore.getState().matches;
+    const matches = useWaveStore.getState().matches;
     const unseenMatch = matches.find((m) => !m.seen);
-    if (unseenMatch && !useEchoStore.getState().latestUnseenMatch) {
-      useEchoStore.setState({ latestUnseenMatch: unseenMatch });
+    if (unseenMatch && !useWaveStore.getState().latestUnseenMatch) {
+      useWaveStore.setState({ latestUnseenMatch: unseenMatch });
     }
 
     return () => {
-      echoBleManager.stop();
+      waveBleManager.stop();
     };
   }, []);
 

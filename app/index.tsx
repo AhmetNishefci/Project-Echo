@@ -3,7 +3,7 @@ import { View, Text, Image, ActivityIndicator, TouchableOpacity } from "react-na
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
 import { fetchProfile, syncTimezoneAndActivity } from "@/services/profile";
-import { fetchMatchesFromServer } from "@/services/echo/matches";
+import { fetchMatchesFromServer } from "@/services/wave/matches";
 import { logger } from "@/utils/logger";
 import { isAtLeastAge } from "@/utils/age";
 
@@ -167,7 +167,7 @@ export default function IndexScreen() {
   }, [isNavigating, routeFromProfile]);
 
   return (
-    <View className="flex-1 items-center justify-center bg-echo-bg">
+    <View className="flex-1 items-center justify-center bg-wave-bg">
       <Image
         source={appIcon}
         className="w-20 h-20 rounded-2xl mb-5"
@@ -176,13 +176,13 @@ export default function IndexScreen() {
       <Text className="text-4xl font-bold text-white mb-6">Wave</Text>
       {fetchFailed ? (
         <View className="items-center">
-          <Text className="text-echo-muted text-sm mb-4">
+          <Text className="text-wave-muted text-sm mb-4">
             Could not connect. Check your internet and try again.
           </Text>
           <TouchableOpacity
             onPress={handleRetry}
             disabled={isNavigating}
-            className="bg-echo-primary rounded-xl px-6 py-3"
+            className="bg-wave-primary rounded-xl px-6 py-3"
           >
             {isNavigating ? (
               <ActivityIndicator color="white" size="small" />

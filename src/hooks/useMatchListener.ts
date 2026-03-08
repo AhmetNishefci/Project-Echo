@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import {
   subscribeToMatches,
   unsubscribeFromMatches,
-} from "@/services/echo/realtime";
+} from "@/services/wave/realtime";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/services/supabase";
 import { logger } from "@/utils/logger";
@@ -21,7 +21,7 @@ export function useMatchListener() {
   useEffect(() => {
     if (!userId) return;
 
-    logger.echo("Subscribing to match events", { userId });
+    logger.wave("Subscribing to match events", { userId });
     subscribeToMatches(userId);
 
     // Re-subscribe on token refresh so the Realtime connection uses
@@ -29,7 +29,7 @@ export function useMatchListener() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event) => {
         if (event === "TOKEN_REFRESHED") {
-          logger.echo("Token refreshed — re-subscribing to realtime");
+          logger.wave("Token refreshed — re-subscribing to realtime");
           unsubscribeFromMatches();
           subscribeToMatches(userId);
         }

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
-import { useEchoStore } from "@/stores/echoStore";
+import { useWaveStore } from "@/stores/waveStore";
 import { useBleStore } from "@/stores/bleStore";
 import { logger } from "@/utils/logger";
 
@@ -10,7 +10,7 @@ let Notifications: typeof import("expo-notifications") | null = null;
 try {
   Notifications = require("expo-notifications");
 } catch {
-  logger.echo("expo-notifications not available, push disabled");
+  logger.wave("expo-notifications not available, push disabled");
 }
 
 let registerForPushNotifications: (() => Promise<string | null>) | null = null;
@@ -46,10 +46,10 @@ export function useNotifications() {
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
         const data = response.notification.request.content.data;
-        logger.echo("Notification tapped", data);
+        logger.wave("Notification tapped", data);
 
         if (data?.type === "match" && data?.match_id) {
-          const store = useEchoStore.getState();
+          const store = useWaveStore.getState();
           store.addMatch({
             matchId: data.match_id as string,
             matchedUserId: (data.matched_user_id as string) ?? "unknown",

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Switch } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Switch, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -42,9 +42,21 @@ export default function NearbyAlertsScreen() {
 
     // Request location permission if alerts are enabled
     if (alertsEnabled) {
-      const granted = await requestLocationPermission();
-      if (!granted) {
-        // User denied location — disable alerts silently
+      const permResult = await requestLocationPermission();
+      if (permResult === "blocked") {
+        // Permission permanently denied — guide user to Settings
+        await saveNearbyAlertsPreference(false);
+        useAuthStore.getState().setNearbyAlertsEnabled(false);
+        Alert.alert(
+          "Location Access Needed",
+          "You've previously denied location access. To enable nearby alerts, open Settings and allow location for Wave.",
+          [
+            { text: "Not Now", style: "cancel" },
+            { text: "Open Settings", onPress: () => Linking.openSettings() },
+          ],
+        );
+      } else if (permResult === "denied") {
+        // User dismissed or denied (can ask again next time)
         await saveNearbyAlertsPreference(false);
         useAuthStore.getState().setNearbyAlertsEnabled(false);
       }

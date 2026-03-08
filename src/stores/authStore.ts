@@ -12,6 +12,7 @@ interface AuthState {
   genderPreference: GenderPreference | null;
   note: string | null;
   nearbyAlertsEnabled: boolean;
+  dailyPushesEnabled: boolean;
 
   setSession: (session: Session | null) => void;
   setLoading: (loading: boolean) => void;
@@ -20,6 +21,7 @@ interface AuthState {
   setGenderPreference: (pref: GenderPreference | null) => void;
   setNote: (note: string | null) => void;
   setNearbyAlertsEnabled: (enabled: boolean) => void;
+  setDailyPushesEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
 
@@ -33,6 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   genderPreference: null,
   note: null,
   nearbyAlertsEnabled: true,
+  dailyPushesEnabled: true,
 
   setSession: (session) =>
     set({
@@ -54,6 +57,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setNearbyAlertsEnabled: (nearbyAlertsEnabled) => set({ nearbyAlertsEnabled }),
 
+  setDailyPushesEnabled: (dailyPushesEnabled) => set({ dailyPushesEnabled }),
+
   reset: () =>
     set({
       session: null,
@@ -65,5 +70,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       genderPreference: null,
       note: null,
       nearbyAlertsEnabled: true,
+      dailyPushesEnabled: true,
     }),
 }));

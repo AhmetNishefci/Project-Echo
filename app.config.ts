@@ -30,6 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSLocationWhenInUseUsageDescription:
         "Wave uses your location to notify you when other Wave users are nearby.",
       UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral", "remote-notification"],
+      LSApplicationQueriesSchemes: ["instagram"],
     },
   },
   android: {

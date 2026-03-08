@@ -10,6 +10,7 @@ import {
   RefreshControl,
   Modal,
   Pressable,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
@@ -27,7 +28,7 @@ import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
 import { echoBleManager } from "@/services/ble/bleManager";
-import { sendWave, undoWave, type SendWaveResult } from "@/services/echo/waves";
+import { sendWave, undoWave } from "@/services/echo/waves";
 import { PermissionGate } from "@/components/PermissionGate";
 import { BleStatusBar } from "@/components/StatusBar";
 import { Toast } from "@/components/Toast";
@@ -38,12 +39,16 @@ import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
 import { useNoteResolver } from "@/hooks/useNoteResolver";
 import { seedFakePeers, clearFakePeers } from "@/utils/seedPeers";
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
+import { showPermissionBlockedAlert } from "@/services/ble/permissions";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
   CLOSE: { label: "Close By", color: "text-blue-400" },
   NEARBY: { label: "Nearby", color: "text-echo-muted" },
 };
+
+const PEER_DISPLAY_CAP = 50;
+const WAVE_EXPIRY_MS = WAVE_EXPIRY_MINUTES * 60 * 1_000;
 
 interface ZoneSection {
   zone: DistanceZone;
@@ -53,7 +58,6 @@ interface ZoneSection {
 }
 
 export default function RadarScreen() {
-  const router = useRouter();
   const {
     adapterState,
     isScanning,
@@ -62,9 +66,11 @@ export default function RadarScreen() {
     permissionStatus,
     nearbyPeers,
     error,
+    proximityAlertPending,
   } = useBleStore();
-  const { currentToken, isRotating } = useEchoStore();
+  const { currentToken } = useEchoStore();
   const rawIncomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
+  const matchedTokens = useEchoStore((s) => s.matchedTokens);
   const genderPreference = useAuthStore((s) => s.genderPreference);
 
   // Filter peers by gender preference before display
@@ -94,7 +100,6 @@ export default function RadarScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<NearbyPeer | null>(null);
   const [showAllPeers, setShowAllPeers] = useState(false);
-  const PEER_DISPLAY_CAP = 50;
 
   // Resolve peer notes from server
   useNoteResolver(isDiscoveryActive);
@@ -123,9 +128,17 @@ export default function RadarScreen() {
       groups[zone].push(peer);
     }
 
-    // Sort within each zone by RSSI (strongest first)
+    // Sort within each zone: incoming wavers first, matched second, then RSSI
+    const incomingSet = new Set(rawIncomingWaveTokens);
     for (const zone of Object.keys(groups) as DistanceZone[]) {
-      groups[zone].sort((a, b) => b.rssi - a.rssi);
+      groups[zone].sort((a, b) => {
+        const aPriority = incomingSet.has(a.ephemeralToken) ? 2
+          : matchedTokens.has(a.ephemeralToken) ? 1 : 0;
+        const bPriority = incomingSet.has(b.ephemeralToken) ? 2
+          : matchedTokens.has(b.ephemeralToken) ? 1 : 0;
+        if (aPriority !== bPriority) return bPriority - aPriority;
+        return b.rssi - a.rssi;
+      });
     }
 
     const order: DistanceZone[] = ["HERE", "CLOSE", "NEARBY"];
@@ -155,12 +168,9 @@ export default function RadarScreen() {
     }
 
     return allSections;
-  }, [filteredPeers, showAllPeers]);
+  }, [filteredPeers, showAllPeers, rawIncomingWaveTokens, matchedTokens]);
 
-  const totalPeers = useMemo(
-    () => Array.from(filteredPeers.values()).length,
-    [filteredPeers],
-  );
+  const totalPeers = filteredPeers.size;
 
   const handleStartDiscovery = useCallback(async () => {
     if (startingRef.current) return;
@@ -168,6 +178,10 @@ export default function RadarScreen() {
     setIsStarting(true);
     try {
       const result = await echoBleManager.requestPermissions();
+      if (result === "blocked") {
+        showPermissionBlockedAlert();
+        return;
+      }
       if (result !== "granted") {
         Alert.alert(
           "Permissions Required",
@@ -216,6 +230,25 @@ export default function RadarScreen() {
     }
   }, []);
 
+  // Auto-start discovery when opened from a proximity alert notification
+  const [showProximityHint, setShowProximityHint] = useState(false);
+  useEffect(() => {
+    if (proximityAlertPending) {
+      useBleStore.getState().setProximityAlertPending(false);
+      setShowProximityHint(true);
+      if (!isDiscoveryActive && !startingRef.current && permissionStatus === "granted") {
+        handleStartDiscovery();
+      }
+    }
+  }, [proximityAlertPending, isDiscoveryActive, permissionStatus, handleStartDiscovery]);
+
+  // Clear the hint once peers appear
+  useEffect(() => {
+    if (showProximityHint && nearbyPeers.size > 0) {
+      setShowProximityHint(false);
+    }
+  }, [showProximityHint, nearbyPeers]);
+
   const handleStopDiscovery = useCallback(async () => {
     await echoBleManager.stop();
   }, []);
@@ -231,34 +264,43 @@ export default function RadarScreen() {
       token: peer.ephemeralToken.substring(0, 8),
     });
 
-    const { status } = await sendWave(peer.ephemeralToken);
+    const result = await sendWave(peer.ephemeralToken);
 
-    if (status === "error") {
+    if (result.status === "error") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
       Alert.alert("Wave Failed", "Could not send wave. Try again.");
-    } else if (status === "already_matched") {
+    } else if (result.status === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
-      store.addMatchedToken(peer.ephemeralToken);
+      store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
       setToast("You've already matched with this person!");
-    } else if (status === "rate_limited") {
+    } else if (result.status === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
       Alert.alert("Slow Down", "You're waving too fast. Wait a moment and try again.");
-    } else if (status === "match") {
+    } else if (result.status === "match") {
       store.removePendingWave(peer.ephemeralToken);
-      store.addMatchedToken(peer.ephemeralToken);
+      store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
       notifySuccess();
       logger.echo("Match from wave!");
-    } else if (status === "pending") {
+    } else if (result.status === "pending") {
+      // Store userId → token mapping so realtime match events can bridge to radar
+      if (result.targetUserId) {
+        store.setPendingWaveUser(result.targetUserId, peer.ephemeralToken);
+      }
       setToast("Wave sent! You can undo anytime before it expires.");
     }
   }, []);
 
+  const undoingRef = useRef<string | null>(null);
   const handleUndo = useCallback(async (targetToken: string) => {
+    if (undoingRef.current === targetToken) return;
+    undoingRef.current = targetToken;
     impactLight();
     const success = await undoWave(targetToken);
+    undoingRef.current = null;
     if (success) {
+      useEchoStore.getState().removePendingWaveByToken(targetToken);
       setToast("Wave undone");
     } else {
       notifyError();
@@ -440,10 +482,17 @@ export default function RadarScreen() {
               <Text className="text-white text-base font-semibold mb-2 mt-6">
                 Looking for people...
               </Text>
-              <Text className="text-echo-muted text-sm text-center px-8 mb-8">
-                Wave at someone nearby. If they wave back, you'll match and see
-                each other's Instagram!
-              </Text>
+              {showProximityHint ? (
+                <Text className="text-echo-muted text-sm text-center px-8 mb-8">
+                  Wave users were detected in your area. Keep scanning — they
+                  may appear as you move around.
+                </Text>
+              ) : (
+                <Text className="text-echo-muted text-sm text-center px-8 mb-8">
+                  Wave at someone nearby. If they wave back, you'll match and
+                  see each other's Instagram!
+                </Text>
+              )}
 
               {/* Invite CTA */}
               <TouchableOpacity
@@ -583,7 +632,6 @@ function PeerRow({
   const hasWavedAtMe = useEchoStore(
     (s) => s.incomingWaveTokens.includes(peer.ephemeralToken),
   );
-  const signal = getSignalLabel(peer.rssi);
   const avatar = useMemo(
     () => getAvatarForToken(peer.ephemeralToken),
     [peer.ephemeralToken],
@@ -591,8 +639,6 @@ function PeerRow({
   const freshness = getTimeSince(peer.lastSeen);
 
   // Auto-expire wave after 15 minutes — revert button to Wave 👋
-  const WAVE_EXPIRY_MS = WAVE_EXPIRY_MINUTES * 60 * 1_000;
-
   useEffect(() => {
     if (!wavePending) return;
 
@@ -608,39 +654,59 @@ function PeerRow({
     }, WAVE_EXPIRY_MS - elapsed);
 
     return () => clearTimeout(timer);
-  }, [wavePending, peer.ephemeralToken, WAVE_EXPIRY_MS]);
+  }, [wavePending, peer.ephemeralToken]);
+
+  const router = useRouter();
 
   return (
-    <View className="py-3 px-4 mb-2 rounded-xl flex-row items-center bg-echo-surface">
+    <View
+      className={`py-3 px-4 mb-2 rounded-xl flex-row items-center ${
+        isAlreadyMatched
+          ? "bg-pink-500/10 border border-pink-500/20"
+          : hasWavedAtMe
+            ? "bg-green-500/10 border border-green-500/20"
+            : "bg-echo-surface"
+      }`}
+    >
       {/* Tappable area: avatar + info */}
       <Pressable onPress={() => onPress(peer)} className="flex-row items-center flex-1 mr-3">
         {/* Avatar */}
         <View
-          className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${avatar.bg} border-2 ${avatar.ring}`}
+          className={`w-10 h-10 rounded-full items-center justify-center mr-3 ${
+            isAlreadyMatched ? "bg-pink-500/20 border-2 border-pink-500/40" : `${avatar.bg} border-2 ${avatar.ring}`
+          }`}
         >
-          <Text className="text-lg">{avatar.emoji}</Text>
+          <Text className="text-lg">{isAlreadyMatched ? "✨" : avatar.emoji}</Text>
         </View>
 
         {/* Info */}
         <View className="flex-1">
-          <Text className="text-white text-base" numberOfLines={1}>
-            {peer.note || "Someone"}
-          </Text>
           <View className="flex-row items-center">
-            <Text className="text-echo-muted text-xs">{signal}</Text>
-            <Text className="text-echo-muted text-xs mx-1">·</Text>
-            <Text className="text-echo-muted text-xs">{freshness}</Text>
+            <Text className="text-white text-base flex-shrink" numberOfLines={1}>
+              {peer.note || "Someone"}
+            </Text>
+            {isAlreadyMatched ? (
+              <Text className="text-pink-400 text-xs ml-2">matched!</Text>
+            ) : hasWavedAtMe ? (
+              <Text className="text-green-400 text-xs ml-2">waved at you</Text>
+            ) : wavePending ? (
+              <Text className="text-orange-400/60 text-xs ml-2">waiting for wave back</Text>
+            ) : null}
           </View>
+          <Text className="text-echo-muted text-xs">{freshness}</Text>
         </View>
       </Pressable>
 
       {/* Wave / Undo / Matched */}
       {isAlreadyMatched ? (
-        <View className="bg-echo-match/20 rounded-lg px-3 py-1.5">
+        <TouchableOpacity
+          onPress={() => router.push("/(main)/history")}
+          className="bg-echo-match/20 rounded-lg px-3 py-1.5"
+        >
           <Text className="text-echo-match font-semibold text-sm">
             Matched 🤝
           </Text>
-        </View>
+        </TouchableOpacity>
       ) : wavePending ? (
         <TouchableOpacity
           onPress={() => onUndo(peer.ephemeralToken)}
@@ -679,12 +745,38 @@ function PeerDetailModal({
   peer: NearbyPeer;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const avatar = getAvatarForToken(peer.ephemeralToken);
   const signal = getSignalLabel(peer.rssi);
   const zone = getDistanceZone(peer.rssi);
   const zoneLabel = ZONE_CONFIG[zone].label;
   const zoneColor = ZONE_CONFIG[zone].color;
   const freshness = getTimeSince(peer.lastSeen);
+  const isMatched = useEchoStore((s) => s.matchedTokens.has(peer.ephemeralToken));
+  const instagramHandle = useEchoStore((s) => s.matchedHandles.get(peer.ephemeralToken));
+
+  const openInstagram = () => {
+    if (!instagramHandle) return;
+    Alert.alert(
+      "Open Instagram",
+      `View @${instagramHandle} on Instagram?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Open",
+          onPress: () => {
+            const deepLink = `instagram://user?username=${instagramHandle}`;
+            const webUrl = `https://instagram.com/${instagramHandle}`;
+            Linking.canOpenURL(deepLink).then((supported) => {
+              Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
+            }).catch(() => {
+              Linking.openURL(webUrl).catch(() => {});
+            });
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose}>
@@ -696,14 +788,32 @@ function PeerDetailModal({
           {/* Avatar + Note */}
           <View className="items-center mb-4">
             <View
-              className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${avatar.bg} border-2 ${avatar.ring}`}
+              className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
+                isMatched ? "bg-pink-500/20 border-2 border-pink-500/40" : `${avatar.bg} border-2 ${avatar.ring}`
+              }`}
             >
-              <Text className="text-2xl">{avatar.emoji}</Text>
+              <Text className="text-2xl">{isMatched ? "✨" : avatar.emoji}</Text>
             </View>
             <Text className="text-white text-lg font-semibold text-center px-4">
               {peer.note || "Someone"}
             </Text>
+            {isMatched && (
+              <View className="bg-echo-match/20 rounded-full px-3 py-1 mt-2">
+                <Text className="text-echo-match text-xs font-semibold">Matched</Text>
+              </View>
+            )}
           </View>
+
+          {/* Instagram handle (if matched) */}
+          {isMatched && instagramHandle && (
+            <TouchableOpacity
+              onPress={openInstagram}
+              className="bg-echo-bg rounded-xl px-4 py-3 mb-4 flex-row items-center justify-between"
+            >
+              <Text className="text-echo-muted text-sm">Instagram</Text>
+              <Text className="text-echo-accent text-sm font-semibold">@{instagramHandle}</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Details */}
           <View className="bg-echo-bg rounded-xl px-4 py-3 mb-4">
@@ -720,6 +830,16 @@ function PeerDetailModal({
               <Text className="text-white text-sm">{freshness}</Text>
             </View>
           </View>
+
+          {/* View Matches (if matched) */}
+          {isMatched && (
+            <TouchableOpacity
+              onPress={() => { onClose(); router.push("/(main)/history"); }}
+              className="bg-echo-primary/20 rounded-xl py-3 items-center mb-3"
+            >
+              <Text className="text-echo-primary text-sm font-semibold">View All Matches</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Close */}
           <TouchableOpacity onPress={onClose} className="bg-echo-bg rounded-xl py-3 items-center">

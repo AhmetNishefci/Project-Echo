@@ -4,6 +4,112 @@ import type { NearbyPeer } from "@/types";
 
 let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 
+const NAMES = [
+  "Sarah, blonde hair, blue jacket",
+  "Alex @ the bar with the red hoodie!",
+  null,
+  "This note is exactly 40 characters long!",
+  "Mia",
+  "Looking for my friend lol",
+  "Just vibing",
+  null,
+  "Coffee lover",
+  "Emma, waiting outside",
+  null,
+  "Lost and confused haha",
+  "Jake, tall guy by the door",
+  "Chill vibes only",
+  null,
+  "Waiting for the bus",
+  "Olivia",
+  "Here for the concert",
+  null,
+  "Anyone wanna grab food?",
+  "Marco",
+  null,
+  "Studying at the library",
+  "New in town!",
+  "Lily, green coat",
+  null,
+  "Just passing through",
+  "Dan, brown hat",
+  null,
+  "Looking for coffee recs",
+  "Priya",
+  "With my dog",
+  null,
+  "Checking this app out",
+  "Tom",
+  null,
+  "On a walk",
+  "Soph, near the fountain",
+  null,
+  "Anyone else bored?",
+  "Leo",
+  "At the park",
+  null,
+  "First time here",
+  "Noor",
+  null,
+  "Rainy day vibes",
+  "Chris, white sneakers",
+  null,
+  "Exploring the city",
+  "Ava",
+  null,
+  "Working remotely from this cafe",
+  "Ben, sitting outside",
+  null,
+  "Just moved here",
+  "Zara",
+  null,
+  "Weekend mode",
+  "Kai, headphones on",
+  null,
+  "Looking for study buddies",
+  "Maya",
+  null,
+  "By the window seat",
+  "Ethan",
+  null,
+  "Walking around downtown",
+  "Riya, red scarf",
+  null,
+];
+
+function generatePeers(): NearbyPeer[] {
+  const now = Date.now();
+  const genders: ("male" | "female" | null)[] = ["female", "male", "female", "male", "female", "male", null, "female", "male", "female", "male", null];
+  const peers: NearbyPeer[] = [];
+
+  for (let i = 0; i < NAMES.length; i++) {
+    const idx = i + 1;
+    const token = `a1b2c3d4e5f6${String(idx).padStart(4, "0")}`;
+
+    // Distribute across zones: ~15 HERE, ~25 CLOSE, ~30 NEARBY
+    let rssi: number;
+    if (i < 15) {
+      rssi = -35 - (i % 20); // HERE: -35 to -54
+    } else if (i < 40) {
+      rssi = -56 - (i % 19); // CLOSE: -56 to -74
+    } else {
+      rssi = -76 - (i % 14); // NEARBY: -76 to -89
+    }
+
+    peers.push({
+      deviceBleId: `fake-${String(idx).padStart(3, "0")}`,
+      ephemeralToken: token,
+      rssi,
+      lastSeen: now,
+      discoveredAt: i < 5 ? now : now - (i * 30_000),
+      gender: genders[i % genders.length],
+      note: NAMES[i],
+    });
+  }
+
+  return peers;
+}
+
 /**
  * DEV ONLY: Seed fake peers into bleStore for UI testing.
  * Call from radar or a debug button. Remove before release.
@@ -11,123 +117,8 @@ let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
 export function seedFakePeers(): void {
   const store = useBleStore.getState();
   const echoStore = useEchoStore.getState();
-  const now = Date.now();
 
-  const fakePeers: NearbyPeer[] = [
-    // HERE zone (rssi >= -55)
-    {
-      deviceBleId: "fake-001",
-      ephemeralToken: "a1b2c3d4e5f60001",
-      rssi: -35,
-      lastSeen: now,
-      discoveredAt: now - 60_000,
-      gender: "female",
-      note: "Sarah, blonde hair, blue jacket",
-    },
-    {
-      deviceBleId: "fake-002",
-      ephemeralToken: "a1b2c3d4e5f60002",
-      rssi: -42,
-      lastSeen: now,
-      discoveredAt: now - 30_000,
-      gender: "male",
-      note: "Alex @ the bar with the red hoodie!",
-    },
-    {
-      deviceBleId: "fake-003",
-      ephemeralToken: "a1b2c3d4e5f60003",
-      rssi: -50,
-      lastSeen: now - 5_000,
-      discoveredAt: now - 120_000,
-      gender: "female",
-      note: null, // No note — shows "Someone"
-    },
-    {
-      deviceBleId: "fake-004",
-      ephemeralToken: "a1b2c3d4e5f60004",
-      rssi: -48,
-      lastSeen: now,
-      discoveredAt: now - 10_000,
-      gender: "male",
-      note: "This note is exactly 40 characters long!", // Max length
-    },
-
-    // CLOSE zone (rssi -55 to -75)
-    {
-      deviceBleId: "fake-005",
-      ephemeralToken: "a1b2c3d4e5f60005",
-      rssi: -58,
-      lastSeen: now,
-      discoveredAt: now - 90_000,
-      gender: "female",
-      note: "Mia",
-    },
-    {
-      deviceBleId: "fake-006",
-      ephemeralToken: "a1b2c3d4e5f60006",
-      rssi: -63,
-      lastSeen: now - 8_000,
-      discoveredAt: now - 200_000,
-      gender: "male",
-      note: "Looking for my friend lol",
-    },
-    {
-      deviceBleId: "fake-007",
-      ephemeralToken: "a1b2c3d4e5f60007",
-      rssi: -70,
-      lastSeen: now,
-      discoveredAt: now - 45_000,
-      gender: null, // Unknown gender
-      note: "Just vibing",
-    },
-    {
-      deviceBleId: "fake-008",
-      ephemeralToken: "a1b2c3d4e5f60008",
-      rssi: -68,
-      lastSeen: now - 3_000,
-      discoveredAt: now - 15_000,
-      gender: "female",
-      note: null,
-    },
-    {
-      deviceBleId: "fake-009",
-      ephemeralToken: "a1b2c3d4e5f60009",
-      rssi: -72,
-      lastSeen: now,
-      discoveredAt: now - 300_000,
-      gender: "male",
-      note: "Coffee lover",
-    },
-
-    // NEARBY zone (rssi < -75)
-    {
-      deviceBleId: "fake-010",
-      ephemeralToken: "a1b2c3d4e5f60010",
-      rssi: -78,
-      lastSeen: now - 15_000,
-      discoveredAt: now - 400_000,
-      gender: "female",
-      note: "Emma, waiting outside",
-    },
-    {
-      deviceBleId: "fake-011",
-      ephemeralToken: "a1b2c3d4e5f60011",
-      rssi: -82,
-      lastSeen: now,
-      discoveredAt: now - 60_000,
-      gender: "male",
-      note: null,
-    },
-    {
-      deviceBleId: "fake-012",
-      ephemeralToken: "a1b2c3d4e5f60012",
-      rssi: -88,
-      lastSeen: now - 20_000,
-      discoveredAt: now - 500_000,
-      gender: null,
-      note: "Lost and confused haha",
-    },
-  ];
+  const fakePeers = generatePeers();
 
   // Insert all fake peers
   for (const peer of fakePeers) {
@@ -146,15 +137,15 @@ export function seedFakePeers(): void {
     }
   }, 10_000);
 
-  // Simulate some interactions:
-  // - Peer 001 waved at us (incoming wave)
-  echoStore.addIncomingWaveToken("a1b2c3d4e5f60001");
-  // - Peer 007 also waved at us
-  echoStore.addIncomingWaveToken("a1b2c3d4e5f60007");
-  // - We already waved at peer 005 (pending wave)
-  echoStore.addPendingWave("a1b2c3d4e5f60005");
-  // - We already matched with peer 009
-  echoStore.addMatchedToken("a1b2c3d4e5f60009");
+  // Simulate some interactions across different zones:
+  echoStore.addIncomingWaveToken(fakePeers[0].ephemeralToken);  // HERE zone
+  echoStore.addIncomingWaveToken(fakePeers[3].ephemeralToken);  // HERE zone
+  echoStore.addIncomingWaveToken(fakePeers[6].ephemeralToken);  // HERE zone
+  echoStore.addIncomingWaveToken(fakePeers[18].ephemeralToken); // CLOSE zone
+  echoStore.addIncomingWaveToken(fakePeers[25].ephemeralToken); // CLOSE zone
+  echoStore.addPendingWave(fakePeers[4].ephemeralToken);
+  echoStore.addMatchedToken(fakePeers[8].ephemeralToken, "emma.w");
+  echoStore.addMatchedToken(fakePeers[12].ephemeralToken, "jake_adventures");
 }
 
 /**

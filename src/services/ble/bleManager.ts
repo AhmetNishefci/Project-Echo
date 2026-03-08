@@ -54,7 +54,7 @@ class EchoBleManager {
   /**
    * Request BLE permissions from the user.
    */
-  async requestPermissions(): Promise<"granted" | "denied"> {
+  async requestPermissions(): Promise<"granted" | "denied" | "blocked"> {
     if (!this.bleManager) {
       await this.initialize();
     }
@@ -62,7 +62,9 @@ class EchoBleManager {
     const status = await requestBlePermissions(this.bleManager!);
     useBleStore.getState().setPermissionStatus(status);
 
-    return status === "granted" ? "granted" : "denied";
+    if (status === "granted") return "granted";
+    if (status === "blocked") return "blocked";
+    return "denied";
   }
 
   /**

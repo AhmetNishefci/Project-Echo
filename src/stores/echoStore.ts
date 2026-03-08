@@ -33,8 +33,14 @@ interface EchoState {
 
   /** Ephemeral tokens that returned already_matched this session */
   matchedTokens: Set<string>;
-  addMatchedToken: (token: string) => void;
+  /** Map ephemeral token → Instagram handle for matched peers (display in detail modal) */
+  matchedHandles: Map<string, string>;
+  /** Map userId → ephemeralToken for pending waves (bridges realtime match events to radar) */
+  pendingWaveUserMap: Map<string, string>;
+  addMatchedToken: (token: string, instagramHandle?: string) => void;
   clearMatchedTokens: () => void;
+  setPendingWaveUser: (userId: string, ephemeralToken: string) => void;
+  removePendingWaveByToken: (ephemeralToken: string) => void;
 
   addMatch: (match: Match) => void;
   removeMatch: (matchId: string) => void;
@@ -60,6 +66,8 @@ export const useEchoStore = create<EchoState>()(
       latestUnseenMatch: null,
 
       matchedTokens: new Set<string>(),
+      matchedHandles: new Map<string, string>(),
+      pendingWaveUserMap: new Map<string, string>(),
 
       setToken: (token, expiresAt) =>
         set({ currentToken: token, tokenExpiresAt: expiresAt }),
@@ -100,14 +108,35 @@ export const useEchoStore = create<EchoState>()(
         })),
       resetIncomingWaveTokens: () => set({ incomingWaveTokens: [] }),
 
-      addMatchedToken: (token) =>
+      addMatchedToken: (token, instagramHandle) =>
         set((state) => {
-          const next = new Set(state.matchedTokens);
-          next.add(token);
-          return { matchedTokens: next };
+          const nextTokens = new Set(state.matchedTokens);
+          nextTokens.add(token);
+          const nextHandles = new Map(state.matchedHandles);
+          if (instagramHandle) nextHandles.set(token, instagramHandle);
+          return { matchedTokens: nextTokens, matchedHandles: nextHandles };
         }),
 
-      clearMatchedTokens: () => set({ matchedTokens: new Set() }),
+      clearMatchedTokens: () => set({ matchedTokens: new Set(), matchedHandles: new Map() }),
+
+      setPendingWaveUser: (userId, ephemeralToken) =>
+        set((state) => {
+          const next = new Map(state.pendingWaveUserMap);
+          next.set(userId, ephemeralToken);
+          return { pendingWaveUserMap: next };
+        }),
+
+      removePendingWaveByToken: (ephemeralToken) =>
+        set((state) => {
+          const next = new Map(state.pendingWaveUserMap);
+          for (const [userId, token] of next) {
+            if (token === ephemeralToken) {
+              next.delete(userId);
+              break;
+            }
+          }
+          return { pendingWaveUserMap: next };
+        }),
 
       addMatch: (match) =>
         set((state) => {
@@ -117,9 +146,27 @@ export const useEchoStore = create<EchoState>()(
             // Don't re-trigger match screen for already-seen or already-displayed matches
             return {};
           }
+
+          // Bridge: if we have a pending wave to this user, mark their token as matched
+          const ephemeralToken = state.pendingWaveUserMap.get(match.matchedUserId);
+          let nextTokens = state.matchedTokens;
+          let nextHandles = state.matchedHandles;
+          let nextUserMap = state.pendingWaveUserMap;
+          if (ephemeralToken) {
+            nextTokens = new Set(state.matchedTokens);
+            nextTokens.add(ephemeralToken);
+            nextHandles = new Map(state.matchedHandles);
+            if (match.instagramHandle) nextHandles.set(ephemeralToken, match.instagramHandle);
+            nextUserMap = new Map(state.pendingWaveUserMap);
+            nextUserMap.delete(match.matchedUserId);
+          }
+
           return {
             matches: [...state.matches, match],
             latestUnseenMatch: match,
+            matchedTokens: nextTokens,
+            matchedHandles: nextHandles,
+            pendingWaveUserMap: nextUserMap,
           };
         }),
 
@@ -157,6 +204,8 @@ export const useEchoStore = create<EchoState>()(
           matches: [],
           latestUnseenMatch: null,
           matchedTokens: new Set(),
+          matchedHandles: new Map(),
+          pendingWaveUserMap: new Map(),
         }),
     }),
     {

@@ -37,11 +37,12 @@ export function getDistanceZone(rssi: number): DistanceZone {
   return "NEARBY";
 }
 
-/** Human-readable signal strength label (aligned with DistanceZone thresholds) */
+/** Human-readable signal strength label (quality indicator, not distance) */
 export function getSignalLabel(rssi: number): string {
-  if (rssi >= -55) return "right here";
-  if (rssi >= -75) return "close by";
-  return "nearby";
+  if (rssi >= -45) return "Strong";
+  if (rssi >= -60) return "Good";
+  if (rssi >= -75) return "Fair";
+  return "Weak";
 }
 
 export interface WavePending {

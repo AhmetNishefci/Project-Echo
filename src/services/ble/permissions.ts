@@ -111,7 +111,7 @@ async function requestAndroidPermissions(): Promise<BlePermissionStatus> {
 export function showPermissionBlockedAlert(): void {
   Alert.alert(
     "Permissions Required",
-    "Echo needs Bluetooth and Location permissions to discover nearby people. Please enable them in Settings.",
+    "Wave needs Bluetooth permissions to discover nearby people. Please enable them in Settings.",
     [
       { text: "Cancel", style: "cancel" },
       { text: "Open Settings", onPress: () => Linking.openSettings() },

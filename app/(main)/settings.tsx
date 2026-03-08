@@ -7,8 +7,8 @@ import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
-import { saveInstagramHandle, updateGenderPreference, saveNote, saveNearbyAlertsPreference } from "@/services/profile";
-import { requestLocationPermission, hasLocationPermission } from "@/services/location";
+import { saveInstagramHandle, updateGenderPreference, saveNote, saveNearbyAlertsPreference, saveDailyPushesPreference } from "@/services/profile";
+import { requestLocationPermission, hasLocationPermission, isLocationBlocked } from "@/services/location";
 import { supabase } from "@/services/supabase";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
@@ -22,7 +22,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled } = useAuthStore();
+  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);
@@ -34,6 +34,7 @@ export default function SettingsScreen() {
   const [noteInput, setNoteInput] = useState(note ?? "");
   const [savingNote, setSavingNote] = useState(false);
   const [savingAlerts, setSavingAlerts] = useState(false);
+  const [savingDailyPushes, setSavingDailyPushes] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
 
@@ -87,8 +88,22 @@ export default function SettingsScreen() {
     if (enabled) {
       const alreadyGranted = await hasLocationPermission();
       if (!alreadyGranted) {
-        const granted = await requestLocationPermission();
-        if (!granted) {
+        const blocked = await isLocationBlocked();
+        if (blocked) {
+          setSavingAlerts(false);
+          Alert.alert(
+            "Location Access Needed",
+            "Location permission was denied. To enable nearby alerts, open Settings and allow location for Wave.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+            ],
+          );
+          return;
+        }
+
+        const permResult = await requestLocationPermission();
+        if (permResult !== "granted") {
           setSavingAlerts(false);
           showToast("Location permission is required for nearby alerts.", "error");
           return;
@@ -104,6 +119,21 @@ export default function SettingsScreen() {
       showToast(enabled ? "Nearby alerts enabled" : "Nearby alerts disabled");
     } else {
       showToast("Could not update alerts. Try again.", "error");
+    }
+  };
+
+  const handleToggleDailyPushes = async (enabled: boolean) => {
+    if (savingDailyPushes) return;
+    setSavingDailyPushes(true);
+
+    const success = await saveDailyPushesPreference(enabled);
+    setSavingDailyPushes(false);
+
+    if (success) {
+      setDailyPushesEnabled(enabled);
+      showToast(enabled ? "Daily reminders enabled" : "Daily reminders disabled");
+    } else {
+      showToast("Could not update preference. Try again.", "error");
     }
   };
 
@@ -269,7 +299,7 @@ export default function SettingsScreen() {
       <Section title="Nearby Alerts">
         <View className="flex-row items-center justify-between">
           <View className="flex-1 mr-4">
-            <Text className="text-white text-sm font-semibold">Proximity Notifications</Text>
+            <Text className="text-white text-sm font-semibold">Nearby Alerts</Text>
             <Text className="text-echo-muted text-xs mt-1 leading-4">
               Get notified when Wave users are near you
             </Text>
@@ -287,6 +317,31 @@ export default function SettingsScreen() {
         )}
         <Text className="text-echo-muted text-xs mt-3 leading-4">
           Uses your location when you open Wave. Your location is never shared with other users.
+        </Text>
+      </Section>
+
+      {/* Daily Reminders */}
+      <Section title="Daily Reminders">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 mr-4">
+            <Text className="text-white text-sm font-semibold">Evening Reminders</Text>
+            <Text className="text-echo-muted text-xs mt-1 leading-4">
+              Get a daily nudge during peak hours (6–8 PM)
+            </Text>
+          </View>
+          <Switch
+            value={dailyPushesEnabled}
+            onValueChange={handleToggleDailyPushes}
+            disabled={savingDailyPushes}
+            trackColor={{ false: "#333", true: "#6c63ff" }}
+            thumbColor="white"
+          />
+        </View>
+        {savingDailyPushes && (
+          <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
+        )}
+        <Text className="text-echo-muted text-xs mt-3 leading-4">
+          One notification per day when Wave users are most active near you.
         </Text>
       </Section>
 

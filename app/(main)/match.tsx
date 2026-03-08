@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { View, Text, TouchableOpacity, Linking, Dimensions } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Dimensions, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -69,9 +69,25 @@ export default function MatchScreen() {
 
   const openInstagram = () => {
     if (!handle) return;
-    Linking.openURL(`instagram://user?username=${handle}`).catch(() => {
-      Linking.openURL(`https://instagram.com/${handle}`);
-    });
+    Alert.alert(
+      "Open Instagram",
+      `View @${handle} on Instagram?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Open",
+          onPress: () => {
+            const deepLink = `instagram://user?username=${handle}`;
+            const webUrl = `https://instagram.com/${handle}`;
+            Linking.canOpenURL(deepLink).then((supported) => {
+              Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
+            }).catch(() => {
+              Linking.openURL(webUrl).catch(() => {});
+            });
+          },
+        },
+      ],
+    );
   };
 
   const handleDismiss = () => {

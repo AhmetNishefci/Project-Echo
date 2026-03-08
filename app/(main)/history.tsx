@@ -1,5 +1,4 @@
 import { View, Text, SectionList, TouchableOpacity, Linking, Share, Alert, ActionSheetIOS, Platform } from "react-native";
-import { useRouter } from "expo-router";
 import { useMemo, useEffect, useRef, useCallback } from "react";
 import { useEchoStore } from "@/stores/echoStore";
 import { removeMatchFromServer } from "@/services/echo/waves";
@@ -37,7 +36,6 @@ function groupByDate(matches: Match[]) {
 }
 
 export default function HistoryScreen() {
-  const router = useRouter();
   const matches = useEchoStore((s) => s.matches);
 
   const sections = useMemo(() => groupByDate(matches), [matches]);
@@ -134,9 +132,25 @@ function MatchRow({ match }: { match: Match }) {
 
   const openInstagram = useCallback(() => {
     if (!handle) return;
-    Linking.openURL(`instagram://user?username=${handle}`).catch(() => {
-      Linking.openURL(`https://instagram.com/${handle}`);
-    });
+    Alert.alert(
+      "Open Instagram",
+      `View @${handle} on Instagram?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Open",
+          onPress: () => {
+            const deepLink = `instagram://user?username=${handle}`;
+            const webUrl = `https://instagram.com/${handle}`;
+            Linking.canOpenURL(deepLink).then((supported) => {
+              Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
+            }).catch(() => {
+              Linking.openURL(webUrl).catch(() => {});
+            });
+          },
+        },
+      ],
+    );
   }, [handle]);
 
   const handleRemove = useCallback(() => {

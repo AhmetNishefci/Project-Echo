@@ -12,6 +12,8 @@ interface BleState {
   permissionStatus: BlePermissionStatus;
   nearbyPeers: Map<string, NearbyPeer>;
   error: string | null;
+  /** Set when the user opens the app from a proximity alert notification */
+  proximityAlertPending: boolean;
 
   setAdapterState: (state: BleAdapterState) => void;
   setScanning: (scanning: boolean) => void;
@@ -19,6 +21,7 @@ interface BleState {
   setAdvertising: (advertising: boolean) => void;
   setPermissionStatus: (status: BlePermissionStatus) => void;
   setError: (error: string | null) => void;
+  setProximityAlertPending: (pending: boolean) => void;
   upsertPeer: (peer: NearbyPeer) => void;
   removePeer: (token: string) => void;
   pruneStale: () => void;
@@ -34,6 +37,7 @@ export const useBleStore = create<BleState>((set, get) => ({
   permissionStatus: "unknown",
   nearbyPeers: new Map(),
   error: null,
+  proximityAlertPending: false,
 
   setAdapterState: (adapterState) => set({ adapterState }),
   setScanning: (isScanning) => set({ isScanning }),
@@ -41,6 +45,7 @@ export const useBleStore = create<BleState>((set, get) => ({
   setAdvertising: (isAdvertising) => set({ isAdvertising }),
   setPermissionStatus: (permissionStatus) => set({ permissionStatus }),
   setError: (error) => set({ error }),
+  setProximityAlertPending: (proximityAlertPending) => set({ proximityAlertPending }),
 
   upsertPeer: (peer) =>
     set((state) => {
@@ -102,5 +107,6 @@ export const useBleStore = create<BleState>((set, get) => ({
       permissionStatus: "unknown",
       nearbyPeers: new Map(),
       error: null,
+      proximityAlertPending: false,
     }),
 }));

@@ -17,7 +17,7 @@ module.exports = {
           muted: "#666680",
           danger: "#ff4757",
           wave: "#4ecdc4",
-          match: "#ff6b6b",
+          match: "#ec4899",
         },
       },
     },

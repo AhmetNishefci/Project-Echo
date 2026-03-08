@@ -1,21 +1,27 @@
 import * as Location from "expo-location";
 import { supabase } from "./supabase";
-import { getFreshSession } from "./echo/session";
 import { logger } from "@/utils/logger";
+
+export type LocationPermissionResult = "granted" | "denied" | "blocked";
 
 /**
  * Request "When In Use" location permission.
- * Returns true if granted, false otherwise.
+ * Returns:
+ * - "granted" — permission granted
+ * - "denied" — user dismissed or denied (can ask again)
+ * - "blocked" — permanently denied, must open Settings to change
  */
-export async function requestLocationPermission(): Promise<boolean> {
+export async function requestLocationPermission(): Promise<LocationPermissionResult> {
   try {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    const granted = status === "granted";
-    logger.auth("Location permission", { status, granted });
-    return granted;
+    const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+    logger.auth("Location permission", { status, canAskAgain });
+
+    if (status === "granted") return "granted";
+    if (!canAskAgain) return "blocked";
+    return "denied";
   } catch (err) {
     logger.error("Location permission request failed", err);
-    return false;
+    return "denied";
   }
 }
 
@@ -26,6 +32,18 @@ export async function hasLocationPermission(): Promise<boolean> {
   try {
     const { status } = await Location.getForegroundPermissionsAsync();
     return status === "granted";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if location permission is permanently blocked (denied + can't ask again).
+ */
+export async function isLocationBlocked(): Promise<boolean> {
+  try {
+    const { status, canAskAgain } = await Location.getForegroundPermissionsAsync();
+    return status !== "granted" && !canAskAgain;
   } catch {
     return false;
   }
@@ -71,24 +89,22 @@ export async function updateLocationOnServer(
   longitude: number,
 ): Promise<{ nearbyCount: number; notifiedCount: number } | null> {
   try {
-    const session = await getFreshSession();
-    if (!session) {
-      logger.error("updateLocationOnServer: no session");
-      return null;
-    }
-
+    // Let supabase.functions.invoke handle auth automatically —
+    // it sends the current session JWT from the client's internal state.
     const { data, error } = await supabase.functions.invoke(
       "update-location",
-      {
-        body: { latitude, longitude },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      },
+      { body: { latitude, longitude } },
     );
 
     if (error) {
-      logger.error("updateLocationOnServer error", error);
+      // Extract response body for debugging (FunctionsHttpError has context.json())
+      let detail: unknown = error.message;
+      try {
+        if ("context" in error && typeof error.context?.json === "function") {
+          detail = await error.context.json();
+        }
+      } catch { /* ignore parse errors */ }
+      logger.error("updateLocationOnServer error", { message: error.message, detail });
       return null;
     }
 

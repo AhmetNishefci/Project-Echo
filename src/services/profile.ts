@@ -2,6 +2,10 @@ import { supabase } from "./supabase";
 import { logger } from "@/utils/logger";
 import type { Gender, GenderPreference } from "@/types";
 
+// Cache to avoid syncing timezone on every app open
+let lastTimezoneSyncMs = 0;
+const TIMEZONE_SYNC_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 export interface UserProfile {
   instagramHandle: string | null;
   gender: Gender | null;
@@ -9,6 +13,7 @@ export interface UserProfile {
   note: string | null;
   nearbyAlertsEnabled: boolean;
   nearbyAlertsOnboarded: boolean;
+  dailyPushesEnabled: boolean;
 }
 
 /**
@@ -27,7 +32,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("instagram_handle, gender, gender_preference, note, nearby_alerts_enabled, nearby_alerts_onboarded")
+      .select("instagram_handle, gender, gender_preference, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -43,6 +48,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
       note: data?.note ?? null,
       nearbyAlertsEnabled: data?.nearby_alerts_enabled ?? true,
       nearbyAlertsOnboarded: data?.nearby_alerts_onboarded ?? false,
+      dailyPushesEnabled: data?.daily_pushes_enabled ?? true,
     };
   } catch (err) {
     logger.error("fetchProfile exception", err);
@@ -287,5 +293,85 @@ export async function saveNearbyAlertsPreference(
   } catch (err) {
     logger.error("saveNearbyAlertsPreference exception", err);
     return false;
+  }
+}
+
+/**
+ * Save/update the user's daily engagement pushes preference.
+ */
+export async function saveDailyPushesPreference(
+  enabled: boolean,
+): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("saveDailyPushesPreference: no user");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ daily_pushes_enabled: enabled })
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("saveDailyPushesPreference error", error);
+      return false;
+    }
+
+    logger.auth("Daily pushes preference saved", { enabled });
+    return true;
+  } catch (err) {
+    logger.error("saveDailyPushesPreference exception", err);
+    return false;
+  }
+}
+
+/**
+ * Sync the device timezone and last_active_at to the user's profile.
+ * Called on app open. Throttled to once per 7 days for timezone,
+ * but always updates last_active_at.
+ */
+export async function syncTimezoneAndActivity(): Promise<void> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const now = Date.now();
+    const updates: Record<string, unknown> = {
+      last_active_at: new Date().toISOString(),
+    };
+
+    // Sync timezone periodically (defense-in-depth: validate IANA format)
+    if (now - lastTimezoneSyncMs > TIMEZONE_SYNC_INTERVAL_MS) {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        // Validate: IANA timezones contain a "/" (e.g. "America/New_York", "Asia/Tokyo")
+        // Reject bare offsets like "UTC" or invalid strings
+        if (tz && tz.includes("/")) {
+          updates.timezone = tz;
+          lastTimezoneSyncMs = now;
+        }
+      } catch {
+        // Intl not available on some engines — skip
+      }
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("syncTimezoneAndActivity error", error);
+    }
+  } catch (err) {
+    logger.error("syncTimezoneAndActivity exception", err);
   }
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, Image, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
-import { fetchProfile } from "@/services/profile";
+import { fetchProfile, syncTimezoneAndActivity } from "@/services/profile";
 import { fetchMatchesFromServer } from "@/services/echo/matches";
 import { logger } from "@/utils/logger";
 
@@ -51,7 +51,7 @@ export default function IndexScreen() {
         return;
       }
 
-      const { setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled } =
+      const { setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
         useAuthStore.getState();
 
       if (!profile.gender) {
@@ -72,6 +72,7 @@ export default function IndexScreen() {
       setInstagramHandle(profile.instagramHandle);
       setNote(profile.note);
       setNearbyAlertsEnabled(profile.nearbyAlertsEnabled);
+      setDailyPushesEnabled(profile.dailyPushesEnabled);
 
       // Check if user has completed nearby alerts onboarding
       if (!profile.nearbyAlertsOnboarded) {
@@ -79,6 +80,11 @@ export default function IndexScreen() {
         router.replace("/nearby-alerts");
         return;
       }
+
+      // Sync timezone and activity in background (for engagement notifications)
+      syncTimezoneAndActivity().catch((err) =>
+        logger.error("Timezone/activity sync failed", err),
+      );
 
       // Fetch matches from server in background to sync match history
       fetchMatchesFromServer().catch((err) =>
@@ -131,7 +137,7 @@ export default function IndexScreen() {
       return;
     }
 
-    const { setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled } =
+    const { setGender, setGenderPreference, setInstagramHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
       useAuthStore.getState();
 
     if (!profile.gender) {
@@ -148,11 +154,14 @@ export default function IndexScreen() {
     setInstagramHandle(profile.instagramHandle);
     setNote(profile.note);
     setNearbyAlertsEnabled(profile.nearbyAlertsEnabled);
+    setDailyPushesEnabled(profile.dailyPushesEnabled);
 
     if (!profile.nearbyAlertsOnboarded) {
       router.replace("/nearby-alerts");
       return;
     }
+
+    syncTimezoneAndActivity().catch(() => {});
     router.replace("/(main)/radar");
   }, [isNavigating, router]);
 

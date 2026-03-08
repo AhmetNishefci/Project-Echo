@@ -8,6 +8,7 @@ import { getFreshSession } from "./session";
 export interface SendWaveResult {
   status: WaveResult;
   match?: Match;
+  targetUserId?: string;
 }
 
 /**
@@ -44,6 +45,7 @@ export async function sendWave(
       status: string;
       match_id?: string;
       matched_user_id?: string;
+      target_user_id?: string;
       instagram_handle?: string;
       reason?: string;
     };
@@ -65,7 +67,7 @@ export async function sendWave(
     }
 
     if (result.status === "pending") {
-      return { status: "pending" };
+      return { status: "pending", targetUserId: result.target_user_id };
     }
 
     if (result.status === "already_matched") {

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "@/stores/authStore";
 import { useEchoStore } from "@/stores/echoStore";
+import { useBleStore } from "@/stores/bleStore";
 import { logger } from "@/utils/logger";
 
 // Lazy-load expo-notifications — may not be available in Expo Go
@@ -58,8 +59,12 @@ export function useNotifications() {
           });
 
           router.push("/(main)/match");
-        } else if (data?.type === "proximity_alert") {
-          // Navigate to radar so user can start discovering nearby people
+        } else if (
+          data?.type === "wave" ||
+          data?.type === "proximity_alert" ||
+          data?.type === "engagement"
+        ) {
+          useBleStore.getState().setProximityAlertPending(true);
           router.push("/(main)/radar");
         }
       });

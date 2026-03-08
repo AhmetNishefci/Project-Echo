@@ -86,7 +86,7 @@ export default function MainLayout() {
           ),
           tabBarBadge: unseenCount > 0 ? unseenCount : undefined,
           tabBarBadgeStyle: {
-            backgroundColor: "#ff6b6b",
+            backgroundColor: "#ec4899",
             fontSize: 10,
             minWidth: 18,
             height: 18,

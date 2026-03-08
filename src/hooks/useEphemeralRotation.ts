@@ -9,6 +9,8 @@ import {
 } from "@/services/ble/constants";
 import { logger } from "@/utils/logger";
 
+const MAX_CONSECUTIVE_FAILURES = 5;
+
 /**
  * Manages ephemeral token lifecycle: initial fetch and periodic rotation.
  * Rotates the token 3 minutes before expiry to ensure seamless coverage.
@@ -37,9 +39,14 @@ export function useEphemeralRotation() {
       } else {
         const { tokenExpiresAt } = useEchoStore.getState();
         // Default to rotating in the standard interval if no expiry is set
-        delay = tokenExpiresAt
+        const baseDelay = tokenExpiresAt
           ? Math.max(1_000, tokenExpiresAt - Date.now() - EPHEMERAL_REFRESH_BUFFER_MS)
           : EPHEMERAL_ROTATION_MS - EPHEMERAL_REFRESH_BUFFER_MS;
+
+        // Add ±30s jitter to prevent thundering herd when many users
+        // rotate tokens at the same time (e.g. after a server restart)
+        const jitter = (Math.random() - 0.5) * 60_000; // -30s to +30s
+        delay = Math.max(1_000, baseDelay + jitter);
       }
 
       timerRef.current = setTimeout(async () => {
@@ -47,20 +54,31 @@ export function useEphemeralRotation() {
 
         logger.echo("Rotating ephemeral token...");
 
-        // Clear stale pending waves, incoming wave count, and matched tokens
-        // — the old tokens are no longer valid
-        useEchoStore.getState().clearAllPendingWaves();
-        useEchoStore.getState().resetIncomingWaveTokens();
-        useEchoStore.getState().clearMatchedTokens();
-
         const result = await fetchNewToken();
         if (aborted) return;
 
         if (result) {
           consecutiveFailures = 0;
+
+          // Clear stale state AFTER new token is confirmed (C4 fix).
+          // Previously these were cleared before fetch, causing state loss
+          // on transient failures.
+          useEchoStore.getState().clearAllPendingWaves();
+          useEchoStore.getState().resetIncomingWaveTokens();
+          useEchoStore.getState().clearMatchedTokens();
+
           await echoBleManager.rotateToken(result.token);
         } else {
           consecutiveFailures++;
+
+          // If failures exceed threshold, warn — the device is advertising
+          // an expired token (C5 fix)
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            logger.error(
+              `Token rotation failed ${consecutiveFailures} consecutive times. ` +
+              "Device may be advertising an expired token.",
+            );
+          }
         }
 
         // Schedule the next rotation based on the NEW token's expiry

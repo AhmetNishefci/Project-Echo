@@ -42,16 +42,19 @@ export default function HistoryScreen() {
 
   const sections = useMemo(() => groupByDate(matches), [matches]);
 
-  // Mark all unseen matches as seen when this screen mounts
-  const didMarkSeen = useRef(false);
+  // Mark all unseen matches as seen when this screen is visible (L13 fix)
+  // Track which match IDs we've already marked to avoid re-running,
+  // but allow new unseen matches to be marked if they arrive while mounted.
+  const seenIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    if (didMarkSeen.current) return;
-    const unseen = matches.filter((m) => !m.seen);
+    const unseen = matches.filter(
+      (m) => !m.seen && !seenIdsRef.current.has(m.matchId),
+    );
     if (unseen.length > 0) {
-      didMarkSeen.current = true;
       const store = useEchoStore.getState();
       for (const m of unseen) {
         store.markMatchSeen(m.matchId);
+        seenIdsRef.current.add(m.matchId);
       }
     }
   }, [matches]);

@@ -111,9 +111,11 @@ export const useEchoStore = create<EchoState>()(
 
       addMatch: (match) =>
         set((state) => {
-          // Prevent duplicate matches
-          if (state.matches.some((m) => m.matchId === match.matchId)) {
-            return { latestUnseenMatch: match.seen ? state.latestUnseenMatch : match };
+          // Prevent duplicate matches (C9 fix)
+          const existing = state.matches.find((m) => m.matchId === match.matchId);
+          if (existing) {
+            // Don't re-trigger match screen for already-seen or already-displayed matches
+            return {};
           }
           return {
             matches: [...state.matches, match],

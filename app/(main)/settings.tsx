@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, Linking, TextInput } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, Linking, TextInput, Switch } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,7 +7,8 @@ import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
-import { saveInstagramHandle, updateGenderPreference, saveNote } from "@/services/profile";
+import { saveInstagramHandle, updateGenderPreference, saveNote, saveNearbyAlertsPreference } from "@/services/profile";
+import { requestLocationPermission, hasLocationPermission } from "@/services/location";
 import { supabase } from "@/services/supabase";
 import { echoBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
@@ -21,7 +22,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote } = useAuthStore();
+  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled } = useAuthStore();
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);
@@ -32,6 +33,7 @@ export default function SettingsScreen() {
   const [editingNote, setEditingNote] = useState(false);
   const [noteInput, setNoteInput] = useState(note ?? "");
   const [savingNote, setSavingNote] = useState(false);
+  const [savingAlerts, setSavingAlerts] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
 
@@ -60,7 +62,7 @@ export default function SettingsScreen() {
   };
 
   const handlePreferenceChange = async (pref: GenderPreference) => {
-    if (pref === genderPreference) return;
+    if (pref === genderPreference || savingPreference) return;
 
     impactLight();
     setSavingPreference(true);
@@ -74,6 +76,34 @@ export default function SettingsScreen() {
       showToast(`Now showing ${label.toLowerCase()}`);
     } else {
       showToast("Could not update preference. Try again.", "error");
+    }
+  };
+
+  const handleToggleAlerts = async (enabled: boolean) => {
+    if (savingAlerts) return;
+    setSavingAlerts(true);
+
+    // When enabling, ensure location permission is granted
+    if (enabled) {
+      const alreadyGranted = await hasLocationPermission();
+      if (!alreadyGranted) {
+        const granted = await requestLocationPermission();
+        if (!granted) {
+          setSavingAlerts(false);
+          showToast("Location permission is required for nearby alerts.", "error");
+          return;
+        }
+      }
+    }
+
+    const success = await saveNearbyAlertsPreference(enabled);
+    setSavingAlerts(false);
+
+    if (success) {
+      setNearbyAlertsEnabled(enabled);
+      showToast(enabled ? "Nearby alerts enabled" : "Nearby alerts disabled");
+    } else {
+      showToast("Could not update alerts. Try again.", "error");
     }
   };
 
@@ -124,10 +154,17 @@ export default function SettingsScreen() {
           onPress: async () => {
             setDeleting(true);
             try {
+              // Use getUser() to validate the token, not cached getSession() (H14 fix)
+              const { data: { user }, error: userError } = await supabase.auth.getUser();
+              if (userError || !user) {
+                setDeleting(false);
+                showToast("Not signed in. Please restart the app.", "error");
+                return;
+              }
               const { data: { session } } = await supabase.auth.getSession();
               if (!session) {
                 setDeleting(false);
-                showToast("Not signed in. Please restart the app.", "error");
+                showToast("Session expired. Please sign in again.", "error");
                 return;
               }
 
@@ -225,6 +262,31 @@ export default function SettingsScreen() {
         )}
         <Text className="text-echo-muted text-xs mt-3 leading-4">
           Only people matching your preference will appear on your radar.
+        </Text>
+      </Section>
+
+      {/* Nearby Alerts */}
+      <Section title="Nearby Alerts">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 mr-4">
+            <Text className="text-white text-sm font-semibold">Proximity Notifications</Text>
+            <Text className="text-echo-muted text-xs mt-1 leading-4">
+              Get notified when Wave users are near you
+            </Text>
+          </View>
+          <Switch
+            value={nearbyAlertsEnabled}
+            onValueChange={handleToggleAlerts}
+            disabled={savingAlerts}
+            trackColor={{ false: "#333", true: "#6c63ff" }}
+            thumbColor="white"
+          />
+        </View>
+        {savingAlerts && (
+          <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
+        )}
+        <Text className="text-echo-muted text-xs mt-3 leading-4">
+          Uses your location when you open Wave. Your location is never shared with other users.
         </Text>
       </Section>
 
@@ -433,9 +495,13 @@ export default function SettingsScreen() {
                 {
                   text: "Sign Out",
                   onPress: async () => {
-                    await echoBleManager.stop();
-                    await signOut();
-                    router.replace("/");
+                    try {
+                      await echoBleManager.stop();
+                      await signOut();
+                      router.replace("/");
+                    } catch {
+                      showToast("Sign out failed. Try again.", "error");
+                    }
                   },
                 },
               ],

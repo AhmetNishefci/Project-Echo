@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { View, Text, TouchableOpacity, Linking, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
@@ -33,17 +33,25 @@ export default function MatchScreen() {
   const latestUnseenMatch = useEchoStore((s) => s.latestUnseenMatch);
   const markMatchSeen = useEchoStore((s) => s.markMatchSeen);
 
+  // Snapshot the match on mount so it doesn't disappear mid-celebration
+  // if the other user removes the match (L14 fix)
+  const matchSnapshot = useRef(latestUnseenMatch);
+  if (latestUnseenMatch && latestUnseenMatch !== matchSnapshot.current) {
+    matchSnapshot.current = latestUnseenMatch;
+  }
+  const displayMatch = matchSnapshot.current;
+
   useEffect(() => {
     notifySuccess();
   }, []);
 
   useEffect(() => {
-    if (!latestUnseenMatch) {
+    if (!displayMatch) {
       router.navigate("/(main)/radar");
     }
-  }, [latestUnseenMatch, router]);
+  }, [displayMatch, router]);
 
-  const handle = latestUnseenMatch?.instagramHandle;
+  const handle = displayMatch?.instagramHandle;
 
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
@@ -57,7 +65,7 @@ export default function MatchScreen() {
     }));
   }, []);
 
-  if (!latestUnseenMatch) return null;
+  if (!displayMatch) return null;
 
   const openInstagram = () => {
     if (!handle) return;
@@ -67,8 +75,8 @@ export default function MatchScreen() {
   };
 
   const handleDismiss = () => {
-    if (latestUnseenMatch) {
-      markMatchSeen(latestUnseenMatch.matchId);
+    if (displayMatch) {
+      markMatchSeen(displayMatch.matchId);
     }
     router.navigate("/(main)/radar");
   };

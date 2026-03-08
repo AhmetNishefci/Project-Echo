@@ -4,19 +4,33 @@ import { logger } from "@/utils/logger";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 let channel: RealtimeChannel | null = null;
+let currentUserId: string | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * Subscribe to match AND wave events for the given user.
  * - "match" events: add match to store so the match screen triggers.
  * - "wave" events: increment incoming wave counter (anonymous notification).
  * - "wave_undo" events: decrement incoming wave counter.
+ * - "match_removed" events: remove match from store.
+ *
+ * Handles reconnection on subscription errors and session refresh.
  */
 export function subscribeToMatches(userId: string): void {
-  if (channel) {
+  // If already subscribed to the same user, skip
+  if (channel && currentUserId === userId) {
     logger.echo("Already subscribed to realtime");
     return;
   }
 
+  // Clean up any existing subscription before creating a new one
+  cleanupChannel();
+  currentUserId = userId;
+
+  createChannel(userId);
+}
+
+function createChannel(userId: string): void {
   channel = supabase
     .channel(`user:${userId}`)
     .on("broadcast", { event: "match" }, (payload) => {
@@ -60,18 +74,56 @@ export function subscribeToMatches(userId: string): void {
         useEchoStore.getState().removeMatch(data.match_id);
       }
     })
-    .subscribe((status) => {
+    .subscribe((status, err) => {
       logger.echo("Realtime subscription status", { status });
+
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        logger.error("Realtime subscription error, scheduling reconnect", err);
+        scheduleReconnect(userId);
+      }
+
+      if (status === "CLOSED") {
+        // Channel was closed externally — only reconnect if we still want it
+        if (currentUserId === userId) {
+          logger.echo("Realtime channel closed unexpectedly, reconnecting");
+          scheduleReconnect(userId);
+        }
+      }
     });
+}
+
+/**
+ * Schedule a reconnection attempt with a delay to avoid rapid reconnect loops.
+ */
+function scheduleReconnect(userId: string): void {
+  if (reconnectTimer) return; // Already scheduled
+
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    if (currentUserId !== userId) return; // User changed, skip
+
+    logger.echo("Attempting realtime reconnect");
+    cleanupChannel();
+    createChannel(userId);
+  }, 3_000);
+}
+
+function cleanupChannel(): void {
+  if (channel) {
+    supabase.removeChannel(channel);
+    channel = null;
+  }
 }
 
 /**
  * Unsubscribe from realtime events.
  */
 export function unsubscribeFromMatches(): void {
-  if (channel) {
-    supabase.removeChannel(channel);
-    channel = null;
-    logger.echo("Unsubscribed from realtime");
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
+  currentUserId = null;
+  cleanupChannel();
+  logger.echo("Unsubscribed from realtime");
 }

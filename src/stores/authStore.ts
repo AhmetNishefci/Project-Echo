@@ -11,6 +11,7 @@ interface AuthState {
   gender: Gender | null;
   genderPreference: GenderPreference | null;
   note: string | null;
+  nearbyAlertsEnabled: boolean;
 
   setSession: (session: Session | null) => void;
   setLoading: (loading: boolean) => void;
@@ -18,6 +19,7 @@ interface AuthState {
   setGender: (gender: Gender | null) => void;
   setGenderPreference: (pref: GenderPreference | null) => void;
   setNote: (note: string | null) => void;
+  setNearbyAlertsEnabled: (enabled: boolean) => void;
   reset: () => void;
 }
 
@@ -30,6 +32,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   gender: null,
   genderPreference: null,
   note: null,
+  nearbyAlertsEnabled: true,
 
   setSession: (session) =>
     set({
@@ -49,6 +52,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setNote: (note) => set({ note }),
 
+  setNearbyAlertsEnabled: (nearbyAlertsEnabled) => set({ nearbyAlertsEnabled }),
+
   reset: () =>
     set({
       session: null,
@@ -59,5 +64,6 @@ export const useAuthStore = create<AuthState>((set) => ({
       gender: null,
       genderPreference: null,
       note: null,
+      nearbyAlertsEnabled: true,
     }),
 }));

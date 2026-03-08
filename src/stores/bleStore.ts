@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { NearbyPeer, BlePermissionStatus, BleAdapterState } from "@/types";
 import { PEER_STALE_TIMEOUT_MS } from "@/services/ble/constants";
 
+const MAX_PEERS = 200;
+
 interface BleState {
   adapterState: BleAdapterState;
   isScanning: boolean;
@@ -44,6 +46,20 @@ export const useBleStore = create<BleState>((set, get) => ({
     set((state) => {
       const next = new Map(state.nearbyPeers);
       next.set(peer.ephemeralToken, peer);
+
+      // Evict weakest-signal peer if over cap
+      if (next.size > MAX_PEERS) {
+        let weakestToken: string | null = null;
+        let weakestRssi = Infinity;
+        for (const [token, p] of next) {
+          if (token !== peer.ephemeralToken && p.rssi < weakestRssi) {
+            weakestRssi = p.rssi;
+            weakestToken = token;
+          }
+        }
+        if (weakestToken) next.delete(weakestToken);
+      }
+
       return { nearbyPeers: next };
     }),
 
@@ -57,15 +73,22 @@ export const useBleStore = create<BleState>((set, get) => ({
   pruneStale: () =>
     set((state) => {
       const now = Date.now();
+      // Check if any peers are stale before cloning the Map (L9 fix)
+      let hasStale = false;
+      for (const [, peer] of state.nearbyPeers) {
+        if (now - peer.lastSeen > PEER_STALE_TIMEOUT_MS) {
+          hasStale = true;
+          break;
+        }
+      }
+      if (!hasStale) return {};
       const next = new Map(state.nearbyPeers);
-      let changed = false;
       for (const [token, peer] of next) {
         if (now - peer.lastSeen > PEER_STALE_TIMEOUT_MS) {
           next.delete(token);
-          changed = true;
         }
       }
-      return changed ? { nearbyPeers: next } : {};
+      return { nearbyPeers: next };
     }),
 
   clearPeers: () => set({ nearbyPeers: new Map() }),

@@ -6,6 +6,9 @@ import {
 } from "@react-native-google-signin/google-signin";
 import { supabase } from "./supabase";
 import { useAuthStore } from "@/stores/authStore";
+import { useEchoStore } from "@/stores/echoStore";
+import { useBleStore } from "@/stores/bleStore";
+import { unsubscribeFromMatches } from "@/services/echo/realtime";
 import { logger } from "@/utils/logger";
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
@@ -71,7 +74,8 @@ export async function signInWithGoogle(): Promise<{
 
 /**
  * Sign out of the current session.
- * Clears Google session and Supabase session.
+ * Clears Google session, Supabase session, realtime subscriptions,
+ * and all local stores (H12 fix).
  */
 export async function signOut(): Promise<void> {
   try {
@@ -80,10 +84,21 @@ export async function signOut(): Promise<void> {
     } catch {
       // Ignore — user may not have signed in via Google
     }
+
+    // Unsubscribe from realtime before signing out (H12 fix)
+    unsubscribeFromMatches();
+
     await supabase.auth.signOut();
+
+    // Reset ALL stores, not just authStore (H12 fix)
+    useEchoStore.getState().reset();
+    useBleStore.getState().reset();
     useAuthStore.getState().reset();
+
     logger.auth("Signed out");
   } catch (err) {
     logger.error("Sign out error", err);
+    // Re-throw so callers know sign-out failed (M5 fix)
+    throw err;
   }
 }

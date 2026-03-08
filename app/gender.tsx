@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,10 +22,20 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 export default function GenderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const existingGender = useAuthStore((s) => s.gender);
-  const [gender, setGender] = useState<Gender | null>("male");
-  const [preference, setPreference] = useState<GenderPreference | null>("female");
+  // Default to null so user must actively choose (M3 fix)
+  const [gender, setGender] = useState<Gender | null>(null);
+  const [preference, setPreference] = useState<GenderPreference | null>(null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  // Auth guard: redirect unauthenticated users (H1 fix)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
 
   // If gender is already set, skip this screen
   useEffect(() => {
@@ -38,12 +48,16 @@ export default function GenderScreen() {
 
   const handleContinue = async () => {
     if (!gender || !preference) return;
+    // Double-tap guard (M4 fix)
+    if (savingRef.current) return;
+    savingRef.current = true;
 
     impactMedium();
     setSaving(true);
 
     const success = await saveGenderProfile(gender, preference);
     setSaving(false);
+    savingRef.current = false;
 
     if (!success) {
       Alert.alert("Error", "Could not save your profile. Please try again.");

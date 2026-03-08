@@ -11,18 +11,14 @@ export default function RootLayout() {
   const setSession = useAuthStore((s) => s.setSession);
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      logger.auth("Initial session check", { hasSession: !!session });
-    });
-
-    // Listen for auth state changes
+    // Use onAuthStateChange for both initial session and subsequent changes.
+    // The INITIAL_SESSION event fires once with the cached session, replacing
+    // the old getSession() + onAuthStateChange race condition (C1 fix).
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      logger.auth("Auth state changed", { event: _event });
+      logger.auth("Auth state changed", { event, hasSession: !!session });
     });
 
     return () => subscription.unsubscribe();
@@ -37,7 +33,14 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: "#0a0a0a" },
           animation: "fade",
         }}
-      />
+      >
+        {/* Disable back gesture on onboarding screens (H2 fix) */}
+        <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="gender" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="note" options={{ gestureEnabled: false }} />
+        <Stack.Screen name="nearby-alerts" options={{ gestureEnabled: false }} />
+      </Stack>
     </ErrorBoundary>
   );
 }

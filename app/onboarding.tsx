@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,8 +10,17 @@ import { impactMedium } from "@/utils/haptics";
 export default function OnboardingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [handle, setHandle] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  // Auth guard (H1 fix)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
 
   const handleContinue = async () => {
     const trimmed = handle.trim().replace(/^@/, "");
@@ -20,11 +29,16 @@ export default function OnboardingScreen() {
       return;
     }
 
+    // Double-tap guard (M4 fix)
+    if (savingRef.current) return;
+    savingRef.current = true;
+
     impactMedium();
     setSaving(true);
 
     const saved = await saveInstagramHandle(trimmed);
     setSaving(false);
+    savingRef.current = false;
 
     if (!saved) {
       Alert.alert(
@@ -37,6 +51,10 @@ export default function OnboardingScreen() {
     useAuthStore.getState().setInstagramHandle(saved);
     router.replace("/note");
   };
+
+  // Button should only be enabled when there's actual content after stripping @
+  const trimmedHandle = handle.trim().replace(/^@/, "");
+  const canContinue = trimmedHandle.length > 0;
 
   return (
     <KeyboardAvoidingView
@@ -77,16 +95,16 @@ export default function OnboardingScreen() {
 
         <TouchableOpacity
           onPress={handleContinue}
-          disabled={saving || !handle.trim()}
+          disabled={saving || !canContinue}
           className={`w-full rounded-2xl py-4 items-center justify-center ${
-            handle.trim() ? "bg-echo-primary" : "bg-echo-surface"
+            canContinue ? "bg-echo-primary" : "bg-echo-surface"
           }`}
           activeOpacity={0.8}
         >
           {saving ? (
             <ActivityIndicator color="white" size="small" />
           ) : (
-            <Text className={`text-base font-semibold ${handle.trim() ? "text-white" : "text-echo-muted"}`}>
+            <Text className={`text-base font-semibold ${canContinue ? "text-white" : "text-echo-muted"}`}>
               Continue
             </Text>
           )}

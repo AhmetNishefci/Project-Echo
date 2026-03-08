@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,34 +12,49 @@ const MAX_NOTE_LENGTH = 40;
 export default function NoteScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  // Auth guard (H1 fix)
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isAuthenticated, router]);
 
   const handleContinue = async () => {
+    // Double-tap guard (M4 fix)
+    if (savingRef.current) return;
+
     const trimmed = note.trim();
     if (!trimmed) {
-      // Treat empty as skip
-      router.replace("/(main)/radar");
+      // Treat empty as skip — explicitly set store note to null (L2 fix)
+      useAuthStore.getState().setNote(null);
+      router.replace("/nearby-alerts");
       return;
     }
 
+    savingRef.current = true;
     impactMedium();
     setSaving(true);
 
     const success = await saveNote(trimmed);
     setSaving(false);
+    savingRef.current = false;
 
     if (!success) {
       Alert.alert(
         "Couldn't Save",
         "Your note couldn't be saved. You can try again in settings.",
-        [{ text: "Continue", onPress: () => router.replace("/(main)/radar") }],
+        [{ text: "Continue", onPress: () => router.replace("/nearby-alerts") }],
       );
       return;
     }
 
     useAuthStore.getState().setNote(trimmed);
-    router.replace("/(main)/radar");
+    router.replace("/nearby-alerts");
   };
 
   return (

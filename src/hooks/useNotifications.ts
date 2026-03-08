@@ -58,6 +58,9 @@ export function useNotifications() {
           });
 
           router.push("/(main)/match");
+        } else if (data?.type === "proximity_alert") {
+          // Navigate to radar so user can start discovering nearby people
+          router.push("/(main)/radar");
         }
       });
 

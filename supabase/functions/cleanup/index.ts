@@ -15,11 +15,23 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
  * Or invoke manually:
  *   curl -X POST https://<project-ref>.supabase.co/functions/v1/cleanup
  */
-serve(async (_req: Request) => {
+serve(async (req: Request) => {
   try {
+    // Basic auth check: require the service role key or anon key (M18 fix)
+    const authHeader = req.headers.get("Authorization");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const token = authHeader?.replace("Bearer ", "") ?? "";
+    if (token !== anonKey && token !== serviceKey) {
+      return new Response(
+        JSON.stringify({ status: "error", message: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+      serviceKey,
     );
 
     const { error } = await adminClient.rpc("cleanup_expired_data");

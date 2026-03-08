@@ -1,17 +1,23 @@
 import { supabase } from "../supabase";
 import { useEchoStore } from "@/stores/echoStore";
-import type { WaveResult } from "@/types";
+import type { WaveResult, Match } from "@/types";
 import { logger } from "@/utils/logger";
 import { getFreshSession } from "./session";
 
+/** Result returned by sendWave with optional match data */
+export interface SendWaveResult {
+  status: WaveResult;
+  match?: Match;
+}
+
 /**
  * Send a wave at a nearby peer identified by their ephemeral token.
- * Returns 'pending' if the wave was recorded, 'match' if mutual,
- * or 'error' if something went wrong.
+ * Returns the wave result status and optional match data.
+ * The caller is responsible for updating the store based on the result.
  */
 export async function sendWave(
   targetEphemeralToken: string,
-): Promise<WaveResult> {
+): Promise<SendWaveResult> {
   try {
     useEchoStore.getState().setWaving(true);
 
@@ -19,7 +25,7 @@ export async function sendWave(
 
     if (!session) {
       logger.error("Cannot send wave: no active session");
-      return "error";
+      return { status: "error" };
     }
 
     const { data, error } = await supabase.functions.invoke("send-wave", {
@@ -31,7 +37,7 @@ export async function sendWave(
 
     if (error) {
       logger.error("Wave failed", error);
-      return "error";
+      return { status: "error" };
     }
 
     const result = data as {
@@ -45,43 +51,46 @@ export async function sendWave(
     logger.echo("Wave result", result);
 
     if (result.status === "match" && result.match_id && result.matched_user_id) {
-      useEchoStore.getState().addMatch({
+      const match: Match = {
         matchId: result.match_id,
         matchedUserId: result.matched_user_id,
         instagramHandle: result.instagram_handle ?? undefined,
         createdAt: new Date().toISOString(),
         seen: false,
-      });
-      return "match";
+      };
+      // Store update: caller can also do this, but we keep it here for
+      // backward compatibility and because match screen routing depends on it
+      useEchoStore.getState().addMatch(match);
+      return { status: "match", match };
     }
 
     if (result.status === "pending") {
-      return "pending";
+      return { status: "pending" };
     }
 
     if (result.status === "already_matched") {
-      // Re-populate local match history if match details are available
-      // (covers the case where user cleared their match history)
       if (result.match_id && result.matched_user_id) {
-        useEchoStore.getState().addMatch({
+        const match: Match = {
           matchId: result.match_id,
           matchedUserId: result.matched_user_id,
           instagramHandle: result.instagram_handle ?? undefined,
           createdAt: new Date().toISOString(),
-          seen: true, // Don't trigger match screen again
-        });
+          seen: true,
+        };
+        useEchoStore.getState().addMatch(match);
+        return { status: "already_matched", match };
       }
-      return "already_matched";
+      return { status: "already_matched" };
     }
 
     if (result.status === "error" && result.reason === "rate_limited") {
-      return "rate_limited";
+      return { status: "rate_limited" };
     }
 
-    return "error";
+    return { status: "error" };
   } catch (error) {
     logger.error("Wave error", error);
-    return "error";
+    return { status: "error" };
   } finally {
     useEchoStore.getState().setWaving(false);
   }
@@ -99,7 +108,7 @@ export async function undoWave(
 
     if (!session) return false;
 
-    const { error } = await supabase.functions.invoke("send-wave", {
+    const { data, error } = await supabase.functions.invoke("send-wave", {
       body: {
         target_ephemeral_token: targetEphemeralToken,
         action: "undo",
@@ -111,6 +120,15 @@ export async function undoWave(
 
     if (error) {
       logger.error("Undo wave failed", error);
+      return false;
+    }
+
+    // Check the response data for undo_expired — supabase.functions.invoke
+    // treats non-5xx as success, so a 400 response with undo_expired
+    // comes back as `data`, not `error` (C8 fix)
+    const result = data as { status?: string; reason?: string } | null;
+    if (result?.status === "error" && result?.reason === "undo_expired") {
+      logger.echo("Undo failed: wave already consumed or expired");
       return false;
     }
 

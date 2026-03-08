@@ -351,6 +351,27 @@ async function sendExpoPush(
     } else {
       const result = await response.json();
       console.log(`Push sent to user ${targetUserId}:`, JSON.stringify(result));
+
+      // Clean up invalid push tokens (H15 fix)
+      // Expo returns per-ticket errors for invalid/uninstalled devices
+      const tickets = result?.data ?? (Array.isArray(result) ? result : []);
+      const tokensToDelete: string[] = [];
+      for (let i = 0; i < tickets.length; i++) {
+        const ticket = tickets[i];
+        if (
+          ticket?.status === "error" &&
+          ticket?.details?.error === "DeviceNotRegistered"
+        ) {
+          tokensToDelete.push(messages[i].to);
+        }
+      }
+      if (tokensToDelete.length > 0) {
+        console.log(`Cleaning up ${tokensToDelete.length} invalid push tokens`);
+        await adminClient
+          .from("push_tokens")
+          .delete()
+          .in("token", tokensToDelete);
+      }
     }
   } catch (err) {
     console.error(`Push notification failed for ${targetUserId}:`, err);

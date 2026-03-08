@@ -27,6 +27,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         "Wave uses Bluetooth to discover nearby people and connect with them.",
       NSBluetoothPeripheralUsageDescription:
         "Wave broadcasts your presence so nearby people can discover you.",
+      NSLocationWhenInUseUsageDescription:
+        "Wave uses your location to notify you when other Wave users are nearby.",
       UIBackgroundModes: ["bluetooth-central", "bluetooth-peripheral", "remote-notification"],
     },
   },
@@ -74,6 +76,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       {
         icon: "./assets/icon.png",
         sounds: [],
+      },
+    ],
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "Wave uses your location to notify you when other Wave users are nearby.",
       },
     ],
   ],

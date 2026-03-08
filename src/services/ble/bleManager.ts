@@ -1,5 +1,6 @@
 import { BleManager as PlxBleManager, State, Subscription } from "react-native-ble-plx";
-import { startScanning, stopScanning, pruneGattReadCache } from "./scanner";
+import { Platform } from "react-native";
+import { startScanning, stopScanning, pruneGattReadCache, resetScannerState } from "./scanner";
 import {
   startAdvertising,
   stopAdvertising,
@@ -28,7 +29,12 @@ class EchoBleManager {
   async initialize(): Promise<void> {
     if (this.bleManager) return;
 
-    this.bleManager = new PlxBleManager();
+    // iOS state restoration key allows the system to relaunch the app
+    // and restore the BLE manager state after a background termination.
+    const options = Platform.OS === "ios"
+      ? { restoreStateIdentifier: "wave-ble-central" }
+      : undefined;
+    this.bleManager = new PlxBleManager(options);
     logger.ble("BLE Manager initialized");
 
     // Listen for adapter state changes
@@ -154,6 +160,8 @@ class EchoBleManager {
    */
   async destroy(): Promise<void> {
     await this.stop();
+    // Reset module-level scanner state to prevent stale references (H8 fix)
+    resetScannerState();
     this.stateSubscription?.remove();
     this.bleManager?.destroy();
     this.bleManager = null;
@@ -214,19 +222,35 @@ class EchoBleManager {
     }
   }
 
-  private pause(): void {
+  private async pause(): Promise<void> {
     logger.ble("Pausing BLE engine (adapter off)");
     this.stopScanCycle();
+    this.stopPruning();
+
+    // Stop advertising when adapter goes off (H6 fix)
+    try {
+      await stopAdvertising();
+    } catch {
+      // Ignore — adapter is already off
+    }
     useBleStore.getState().setScanning(false);
+    useBleStore.getState().setAdvertising(false);
   }
 
   private async resume(): Promise<void> {
     logger.ble("Resuming BLE engine (adapter on)");
     this.startScanCycle();
+    // Restart pruning on resume (M15 fix)
+    this.startPruning();
 
-    // Restart advertising with current token + gender
+    // Stop old advertisement before starting new one (H6 fix)
     const token = useEchoStore.getState().currentToken;
     if (token) {
+      try {
+        await stopAdvertising();
+      } catch {
+        // Ignore
+      }
       try {
         await startAdvertising(this.buildPayload(token));
         useBleStore.getState().setAdvertising(true);

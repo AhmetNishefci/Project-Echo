@@ -27,7 +27,7 @@ import { useBleStore } from "@/stores/bleStore";
 import { useEchoStore } from "@/stores/echoStore";
 import { useAuthStore } from "@/stores/authStore";
 import { echoBleManager } from "@/services/ble/bleManager";
-import { sendWave, undoWave } from "@/services/echo/waves";
+import { sendWave, undoWave, type SendWaveResult } from "@/services/echo/waves";
 import { PermissionGate } from "@/components/PermissionGate";
 import { BleStatusBar } from "@/components/StatusBar";
 import { Toast } from "@/components/Toast";
@@ -36,6 +36,8 @@ import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from
 import { logger } from "@/utils/logger";
 import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
 import { useNoteResolver } from "@/hooks/useNoteResolver";
+import { seedFakePeers, clearFakePeers } from "@/utils/seedPeers";
+import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
@@ -91,6 +93,8 @@ export default function RadarScreen() {
   const [toast, setToast] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeer, setSelectedPeer] = useState<NearbyPeer | null>(null);
+  const [showAllPeers, setShowAllPeers] = useState(false);
+  const PEER_DISPLAY_CAP = 50;
 
   // Resolve peer notes from server
   useNoteResolver(isDiscoveryActive);
@@ -98,7 +102,9 @@ export default function RadarScreen() {
   const handleRefresh = useCallback(async () => {
     if (!isDiscoveryActive) return;
     setRefreshing(true);
-    useBleStore.getState().clearPeers();
+    // Restart scan cycle instead of clearing all peers — avoids jarring
+    // empty list (M10 fix). Peers naturally repopulate as they're rediscovered.
+    echoBleManager.restartScanCycle();
     // Brief pause so the user sees the refresh indicator
     await new Promise((r) => setTimeout(r, 800));
     setRefreshing(false);
@@ -123,7 +129,7 @@ export default function RadarScreen() {
     }
 
     const order: DistanceZone[] = ["HERE", "CLOSE", "NEARBY"];
-    return order
+    const allSections = order
       .filter((zone) => groups[zone].length > 0)
       .map((zone) => ({
         zone,
@@ -131,7 +137,25 @@ export default function RadarScreen() {
         color: ZONE_CONFIG[zone].color,
         data: groups[zone],
       }));
-  }, [filteredPeers]);
+
+    // Apply peer cap: limit total displayed peers across all zones
+    if (!showAllPeers) {
+      let remaining = PEER_DISPLAY_CAP;
+      for (const section of allSections) {
+        if (remaining <= 0) {
+          section.data = [];
+        } else if (section.data.length > remaining) {
+          section.data = section.data.slice(0, remaining);
+          remaining = 0;
+        } else {
+          remaining -= section.data.length;
+        }
+      }
+      return allSections.filter((s) => s.data.length > 0);
+    }
+
+    return allSections;
+  }, [filteredPeers, showAllPeers]);
 
   const totalPeers = useMemo(
     () => Array.from(filteredPeers.values()).length,
@@ -171,6 +195,18 @@ export default function RadarScreen() {
 
       await echoBleManager.start();
       impactLight();
+
+      // Send location to server for proximity notifications (non-blocking)
+      const nearbyAlertsEnabled = useAuthStore.getState().nearbyAlertsEnabled;
+      if (nearbyAlertsEnabled) {
+        getCurrentLocation().then((loc) => {
+          if (loc) {
+            updateLocationOnServer(loc.latitude, loc.longitude).catch((err) =>
+              logger.error("Location update failed (non-fatal)", err),
+            );
+          }
+        });
+      }
     } catch (err) {
       logger.error("Failed to start discovery", err);
       Alert.alert("Error", "Failed to start Bluetooth discovery.");
@@ -195,26 +231,26 @@ export default function RadarScreen() {
       token: peer.ephemeralToken.substring(0, 8),
     });
 
-    const result = await sendWave(peer.ephemeralToken);
+    const { status } = await sendWave(peer.ephemeralToken);
 
-    if (result === "error") {
+    if (status === "error") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
       Alert.alert("Wave Failed", "Could not send wave. Try again.");
-    } else if (result === "already_matched") {
+    } else if (status === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken);
       setToast("You've already matched with this person!");
-    } else if (result === "rate_limited") {
+    } else if (status === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
       Alert.alert("Slow Down", "You're waving too fast. Wait a moment and try again.");
-    } else if (result === "match") {
+    } else if (status === "match") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken);
       notifySuccess();
       logger.echo("Match from wave!");
-    } else if (result === "pending") {
+    } else if (status === "pending") {
       setToast("Wave sent! You can undo anytime before it expires.");
     }
   }, []);
@@ -288,6 +324,24 @@ export default function RadarScreen() {
           </Text>
         </View>
       </View>
+
+      {/* DEV: Seed/clear fake peers for UI testing */}
+      {__DEV__ && (
+        <View className="flex-row mb-2" style={{ gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => { seedFakePeers(); useBleStore.getState().setDiscoveryActive(true); }}
+            className="bg-yellow-600/30 rounded-lg px-3 py-1.5"
+          >
+            <Text className="text-yellow-400 text-xs font-semibold">Seed Peers</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={clearFakePeers}
+            className="bg-red-600/30 rounded-lg px-3 py-1.5"
+          >
+            <Text className="text-red-400 text-xs font-semibold">Clear Peers</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Status bar */}
       <BleStatusBar
@@ -364,6 +418,18 @@ export default function RadarScreen() {
             tintColor="#6c63ff"
             enabled={isDiscoveryActive}
           />
+        }
+        ListFooterComponent={
+          !showAllPeers && totalPeers > PEER_DISPLAY_CAP ? (
+            <TouchableOpacity
+              onPress={() => setShowAllPeers(true)}
+              className="bg-echo-surface rounded-2xl py-3 items-center mt-2 mb-4"
+            >
+              <Text className="text-echo-accent text-sm font-semibold">
+                Show {totalPeers - PEER_DISPLAY_CAP} more {totalPeers - PEER_DISPLAY_CAP === 1 ? "person" : "people"}
+              </Text>
+            </TouchableOpacity>
+          ) : null
         }
         ListEmptyComponent={
           isDiscoveryActive ? (

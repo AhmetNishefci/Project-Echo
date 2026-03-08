@@ -3,8 +3,8 @@ import { supabase } from "@/services/supabase";
 import { useBleStore } from "@/stores/bleStore";
 import { logger } from "@/utils/logger";
 
-const POLL_INTERVAL_MS = 5_000;
-const FULL_REFRESH_TICKS = 6; // Re-resolve ALL tokens every 30s to catch note changes
+const POLL_INTERVAL_MS = 10_000; // Poll every 10s (was 5s) to reduce server load
+const FULL_REFRESH_TICKS = 6; // Re-resolve ALL tokens every 60s to catch note changes
 
 /**
  * Polls the server to resolve peer notes for tokens discovered via BLE.
@@ -61,8 +61,12 @@ export function useNoteResolver(isDiscoveryActive: boolean): void {
 
         if (unresolvedTokens.length === 0) return;
 
+        // Cap batch size to avoid oversized RPC payloads (M17 fix)
+        const MAX_BATCH = 30;
+        const batchedTokens = unresolvedTokens.slice(0, MAX_BATCH);
+
         const { data, error } = await supabase.rpc("resolve_peer_notes", {
-          p_tokens: unresolvedTokens,
+          p_tokens: batchedTokens,
         });
 
         if (error) {
@@ -71,7 +75,7 @@ export function useNoteResolver(isDiscoveryActive: boolean): void {
         }
 
         // Mark all queried tokens as resolved (even if they had no note)
-        for (const token of unresolvedTokens) {
+        for (const token of batchedTokens) {
           resolvedRef.current.add(token);
         }
 
@@ -82,7 +86,7 @@ export function useNoteResolver(isDiscoveryActive: boolean): void {
         }
 
         // Tokens that were queried but returned no note — clear any stale note
-        for (const token of unresolvedTokens) {
+        for (const token of batchedTokens) {
           if (!noteMap.has(token)) {
             noteMap.set(token, null);
           }

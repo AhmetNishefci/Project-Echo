@@ -7,6 +7,8 @@ export interface UserProfile {
   gender: Gender | null;
   genderPreference: GenderPreference | null;
   note: string | null;
+  nearbyAlertsEnabled: boolean;
+  nearbyAlertsOnboarded: boolean;
 }
 
 /**
@@ -25,7 +27,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("instagram_handle, gender, gender_preference, note")
+      .select("instagram_handle, gender, gender_preference, note, nearby_alerts_enabled, nearby_alerts_onboarded")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -39,6 +41,8 @@ export async function fetchProfile(): Promise<UserProfile | null> {
       gender: data?.gender ?? null,
       genderPreference: data?.gender_preference ?? null,
       note: data?.note ?? null,
+      nearbyAlertsEnabled: data?.nearby_alerts_enabled ?? true,
+      nearbyAlertsOnboarded: data?.nearby_alerts_onboarded ?? false,
     };
   } catch (err) {
     logger.error("fetchProfile exception", err);
@@ -73,14 +77,32 @@ export async function saveGenderProfile(
       return false;
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update({ gender, gender_preference: genderPreference })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .select("id");
 
     if (error) {
       logger.error("saveGenderProfile error", error);
       return false;
+    }
+
+    // If no row was updated, the auth trigger may not have fired yet.
+    // Fall back to an upsert to create the profile row.
+    if (!updated || updated.length === 0) {
+      logger.error("saveGenderProfile: no profile row — attempting upsert fallback", { userId: user.id });
+      const { error: upsertError } = await supabase
+        .from("profiles")
+        .upsert(
+          { id: user.id, gender, gender_preference: genderPreference },
+          { onConflict: "id" },
+        );
+
+      if (upsertError) {
+        logger.error("saveGenderProfile upsert fallback failed", upsertError);
+        return false;
+      }
     }
 
     logger.auth("Gender profile saved", { gender, genderPreference });
@@ -140,10 +162,10 @@ export async function saveInstagramHandle(
       handle = handle.substring(1);
     }
 
-    // Validate: Instagram usernames are 1-30 chars, alphanumeric + dots + underscores
-    // Must contain at least one alphanumeric character
-    const igRegex = /^(?=.*[a-z0-9])[a-z0-9._]{1,30}$/;
-    if (!igRegex.test(handle)) {
+    // Validate: Instagram usernames are 1-30 chars, alphanumeric + dots + underscores.
+    // Must start and end with alphanumeric, no consecutive dots (M2 fix).
+    const igRegex = /^[a-z0-9](?:[a-z0-9._]{0,28}[a-z0-9])?$/;
+    if (!igRegex.test(handle) || handle.includes("..")) {
       logger.error("saveInstagramHandle: invalid format", { handle });
       return null;
     }
@@ -198,13 +220,20 @@ export async function saveNote(rawNote: string | null): Promise<boolean> {
       return false;
     }
 
-    const { error } = await supabase
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update({ note })
-      .eq("id", user.id);
+      .eq("id", user.id)
+      .select("id");
 
     if (error) {
       logger.error("saveNote error", error);
+      return false;
+    }
+
+    // Check that a row was actually updated (H5 fix)
+    if (!updated || updated.length === 0) {
+      logger.error("saveNote: no profile row found for user", { userId: user.id });
       return false;
     }
 
@@ -223,6 +252,40 @@ export async function saveNote(rawNote: string | null): Promise<boolean> {
     return true;
   } catch (err) {
     logger.error("saveNote exception", err);
+    return false;
+  }
+}
+
+/**
+ * Save/update the user's nearby alerts preference.
+ */
+export async function saveNearbyAlertsPreference(
+  enabled: boolean,
+): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("saveNearbyAlertsPreference: no user");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ nearby_alerts_enabled: enabled, nearby_alerts_onboarded: true })
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("saveNearbyAlertsPreference error", error);
+      return false;
+    }
+
+    logger.auth("Nearby alerts preference saved", { enabled });
+    return true;
+  } catch (err) {
+    logger.error("saveNearbyAlertsPreference exception", err);
     return false;
   }
 }

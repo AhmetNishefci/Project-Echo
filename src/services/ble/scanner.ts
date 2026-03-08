@@ -16,6 +16,9 @@ import { logger } from "@/utils/logger";
 const pendingGattReads = new Set<string>();
 const recentGattReads = new Map<string, number>();
 
+// Cap concurrent GATT connections to avoid exhausting iOS limit (M8 fix)
+const MAX_CONCURRENT_GATT = 4;
+
 // Batch upsert buffer — avoids creating a new Map on every BLE advertisement
 let pendingUpserts: NearbyPeer[] = [];
 let upsertTimer: ReturnType<typeof setTimeout> | null = null;
@@ -42,15 +45,16 @@ function extractPayload(device: Device): BlePayload | null {
   // New format: gender char + 16 hex chars (17 total)
   if (raw.length === 17) {
     const gender = genderCharToGender(raw[0]);
-    const token = raw.slice(1);
+    const token = raw.slice(1).toLowerCase(); // Case-insensitive (M11 fix)
     if (/^[0-9a-f]{16}$/.test(token)) {
       return { token, gender };
     }
   }
 
   // Legacy format: 16 hex chars (no gender)
-  if (raw.length === 16 && /^[0-9a-f]{16}$/.test(raw)) {
-    return { token: raw, gender: null };
+  const rawLower = raw.toLowerCase(); // Case-insensitive (M11 fix)
+  if (rawLower.length === 16 && /^[0-9a-f]{16}$/.test(rawLower)) {
+    return { token: rawLower, gender: null };
   }
 
   return null;
@@ -64,15 +68,16 @@ function parseGattValue(decoded: string): BlePayload | null {
   // New format: gender char + 16 hex chars
   if (decoded.length === 17) {
     const gender = genderCharToGender(decoded[0]);
-    const token = decoded.slice(1);
+    const token = decoded.slice(1).toLowerCase(); // Case-insensitive (M11 fix)
     if (/^[0-9a-f]{16}$/.test(token)) {
       return { token, gender };
     }
   }
 
   // Legacy format: 16 hex chars
-  if (decoded.length === 16 && /^[0-9a-f]{16}$/.test(decoded)) {
-    return { token: decoded, gender: null };
+  const lower = decoded.toLowerCase(); // Case-insensitive (M11 fix)
+  if (lower.length === 16 && /^[0-9a-f]{16}$/.test(lower)) {
+    return { token: lower, gender: null };
   }
 
   return null;
@@ -92,6 +97,7 @@ export function startScanning(bleManager: BleManager): void {
     return;
   }
 
+  // Clear error on successful scan start (H9 fix)
   useBleStore.setState({ isScanning: true, error: null });
   logger.ble("Starting BLE scan for Echo devices");
 
@@ -114,12 +120,25 @@ export function startScanning(bleManager: BleManager): void {
 
 export function stopScanning(bleManager: BleManager): void {
   bleManager.stopDeviceScan();
-  // Clear any pending batch upsert
+
+  // Flush pending upserts before clearing, so recently-discovered peers
+  // are not silently dropped (H10 fix)
   if (upsertTimer) {
     clearTimeout(upsertTimer);
     upsertTimer = null;
   }
-  pendingUpserts = [];
+  if (pendingUpserts.length > 0) {
+    const batch = pendingUpserts;
+    pendingUpserts = [];
+    useBleStore.setState((state) => {
+      const next = new Map(state.nearbyPeers);
+      for (const p of batch) {
+        next.set(p.ephemeralToken, p);
+      }
+      return { nearbyPeers: next };
+    });
+  }
+
   useBleStore.setState({ isScanning: false });
   logger.ble("Stopped BLE scan");
 }
@@ -132,6 +151,21 @@ export function pruneGattReadCache(): void {
       recentGattReads.delete(id);
     }
   }
+}
+
+/**
+ * Reset module-level state. Called when the BLE manager is destroyed
+ * to prevent stale references across sessions (H8 fix).
+ */
+export function resetScannerState(): void {
+  pendingGattReads.clear();
+  recentGattReads.clear();
+  pendingUpserts = [];
+  if (upsertTimer) {
+    clearTimeout(upsertTimer);
+    upsertTimer = null;
+  }
+  scannerBleManager = null;
 }
 
 function handleDiscoveredDevice(device: Device): void {
@@ -203,11 +237,19 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
   const lastRead = recentGattReads.get(deviceId);
   if (lastRead && Date.now() - lastRead < GATT_READ_COOLDOWN_MS) return;
 
+  // Cap concurrent GATT connections (M8 fix)
+  if (pendingGattReads.size >= MAX_CONCURRENT_GATT) return;
+
   pendingGattReads.add(deviceId);
 
-  try {
-    const manager = scannerBleManager!;
+  // Capture manager reference at call time to detect staleness (H7 fix)
+  const manager = scannerBleManager;
+  if (!manager) {
+    pendingGattReads.delete(deviceId);
+    return;
+  }
 
+  try {
     const connected = await manager.connectToDevice(deviceId, {
       timeout: GATT_CONNECT_TIMEOUT_MS,
     });
@@ -224,25 +266,37 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
       if (read.value) {
         // react-native-ble-plx returns base64-encoded data
         // Use atob (available on Hermes 0.71+); no Buffer in React Native
-        const decoded = atob(read.value);
-        const payload = parseGattValue(decoded);
-        if (payload) {
-          logger.ble(
-            `GATT read token: ${payload.token.substring(0, 8)}... from ${deviceId.substring(0, 8)}`,
-          );
-          upsertPeerWithToken(device, payload.token, payload.gender);
-        } else {
-          logger.ble(`GATT read invalid token format from ${deviceId.substring(0, 8)}: len=${decoded.length}`);
+        try {
+          const decoded = atob(read.value);
+          const payload = parseGattValue(decoded);
+          if (payload) {
+            logger.ble(
+              `GATT read token: ${payload.token.substring(0, 8)}... from ${deviceId.substring(0, 8)}`,
+            );
+            upsertPeerWithToken(device, payload.token, payload.gender);
+          } else {
+            logger.ble(`GATT read invalid token format from ${deviceId.substring(0, 8)}: len=${decoded.length}`);
+          }
+        } catch (decodeErr) {
+          // atob can fail on non-Latin-1 binary data (M14 fix)
+          logger.ble(`GATT decode failed for ${deviceId.substring(0, 8)}: ${decodeErr}`);
         }
       }
     }
 
-    await manager.cancelDeviceConnection(deviceId).catch(() => {});
     recentGattReads.set(deviceId, Date.now());
   } catch (error) {
     logger.ble(`GATT read failed for ${deviceId.substring(0, 8)}: ${error}`);
     recentGattReads.set(deviceId, Date.now());
   } finally {
     pendingGattReads.delete(deviceId);
+    // Always disconnect to prevent connection leaks (C6 fix)
+    try {
+      if (manager) {
+        await manager.cancelDeviceConnection(deviceId);
+      }
+    } catch {
+      // Ignore disconnect errors — device may already be disconnected
+    }
   }
 }

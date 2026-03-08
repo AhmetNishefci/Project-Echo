@@ -1,0 +1,272 @@
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
+const adminClient = createClient(
+  Deno.env.get("SUPABASE_URL") ?? "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+);
+
+const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
+
+/**
+ * Update Location Edge Function
+ *
+ * Called when a user starts BLE discovery. Updates their location
+ * and sends proximity notifications to nearby Wave users.
+ *
+ * Body: { latitude: number, longitude: number }
+ */
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    // Authenticate user
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: req.headers.get("Authorization")! },
+        },
+      },
+    );
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabaseClient.auth.getUser();
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Parse body
+    const body = await req.json();
+    const { latitude, longitude } = body as {
+      latitude: number;
+      longitude: number;
+    };
+
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      latitude < -90 ||
+      latitude > 90 ||
+      longitude < -180 ||
+      longitude > 180
+    ) {
+      return new Response(
+        JSON.stringify({ error: "Invalid coordinates" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const userId = user.id;
+
+    // Step 0: Rate limit — max 1 location update per 30 seconds per user
+    const { data: lastUpdate } = await adminClient
+      .from("profiles")
+      .select("last_location_at")
+      .eq("id", userId)
+      .single();
+
+    if (lastUpdate?.last_location_at) {
+      const elapsed = Date.now() - new Date(lastUpdate.last_location_at).getTime();
+      if (elapsed < 30_000) {
+        return new Response(
+          JSON.stringify({ error: "Rate limited", retry_after_ms: 30_000 - elapsed }),
+          {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
+    // Step 1: Update user's location
+    const { error: updateError } = await adminClient
+      .from("profiles")
+      .update({
+        last_latitude: latitude,
+        last_longitude: longitude,
+        last_location_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+
+    if (updateError) {
+      console.error("Failed to update location:", updateError);
+      return new Response(
+        JSON.stringify({ error: "Failed to update location" }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Step 2: Find nearby users to notify
+    const { data: nearbyUsers, error: queryError } = await adminClient.rpc(
+      "find_nearby_users",
+      {
+        p_user_id: userId,
+        p_latitude: latitude,
+        p_longitude: longitude,
+        p_radius_meters: 300,
+        p_max_results: 50,
+      },
+    );
+
+    if (queryError) {
+      console.error("find_nearby_users error:", queryError);
+      // Non-fatal: location was saved, just can't notify
+      return new Response(
+        JSON.stringify({ status: "ok", nearby_count: 0, notified_count: 0 }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    const nearbyCount = nearbyUsers?.length ?? 0;
+
+    if (nearbyCount === 0) {
+      return new Response(
+        JSON.stringify({ status: "ok", nearby_count: 0, notified_count: 0 }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Step 3: Build notification message
+    // Use a generic message — we know users are near the caller,
+    // but can't confirm the exact count near each recipient.
+    const notifBody = "A Wave user is nearby — open the app to connect!";
+
+    // Step 4: Send push notifications
+    // Build messages with user_id attached for accurate cooldown tracking
+    const pushMessages = nearbyUsers!.map(
+      (u: { user_id: string; push_token: string; platform: string }) => ({
+        to: u.push_token,
+        sound: "default",
+        title: "Wave \u{1F44B}",
+        body: notifBody,
+        data: { type: "proximity_alert" },
+        priority: "high" as const,
+        _userId: u.user_id, // internal tracking, stripped before sending
+      }),
+    );
+
+    // Batch in chunks of 100 (Expo Push API limit)
+    const notifiedUserIds: string[] = [];
+    const invalidTokens: string[] = [];
+
+    for (let i = 0; i < pushMessages.length; i += 100) {
+      const batch = pushMessages.slice(i, i + 100);
+      // Strip internal _userId before sending to Expo
+      const expoBatch = batch.map(({ _userId, ...msg }) => msg);
+
+      try {
+        const pushResponse = await fetch(EXPO_PUSH_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(expoBatch),
+        });
+
+        if (pushResponse.ok) {
+          const pushData = await pushResponse.json();
+
+          // Check each ticket against the corresponding user
+          if (pushData.data && Array.isArray(pushData.data)) {
+            for (let j = 0; j < pushData.data.length; j++) {
+              const ticket = pushData.data[j];
+              if (
+                ticket.status === "error" &&
+                ticket.details?.error === "DeviceNotRegistered"
+              ) {
+                invalidTokens.push(batch[j].to);
+              } else if (ticket.status === "ok") {
+                notifiedUserIds.push(batch[j]._userId);
+              }
+            }
+          }
+        } else {
+          console.error("Expo Push API error:", pushResponse.status);
+        }
+      } catch (pushErr) {
+        console.error("Push send error:", pushErr);
+      }
+    }
+
+    // Step 5: Record notifications for cooldown tracking
+    // Only record for users whose push actually succeeded
+    if (notifiedUserIds.length > 0) {
+      const notifRecords = notifiedUserIds.map((uid) => ({
+        user_id: uid,
+        triggered_by: userId,
+      }));
+
+      const { error: insertError } = await adminClient
+        .from("proximity_notifications")
+        .insert(notifRecords);
+
+      if (insertError) {
+        console.error("Failed to record notifications:", insertError);
+        // Non-fatal
+      }
+    }
+
+    // Step 6: Clean up invalid push tokens
+    if (invalidTokens.length > 0) {
+      await adminClient
+        .from("push_tokens")
+        .delete()
+        .in("token", invalidTokens);
+
+      console.log(`Cleaned up ${invalidTokens.length} invalid push tokens`);
+    }
+
+    const notifiedCount = notifiedUserIds.length;
+
+    console.log(
+      `Location updated for ${userId}. Nearby: ${nearbyCount}, Notified: ${notifiedCount}`,
+    );
+
+    return new Response(
+      JSON.stringify({
+        status: "ok",
+        nearby_count: nearbyCount,
+        notified_count: notifiedCount,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
+  } catch (err) {
+    console.error("Unexpected error:", err);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});

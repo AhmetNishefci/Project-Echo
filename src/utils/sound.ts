@@ -89,3 +89,12 @@ export async function playMatchChime(): Promise<void> {
     // silently ignore
   }
 }
+
+/**
+ * Preload all sound assets so the first playback is instant.
+ * Call once during app initialization. Fails silently.
+ */
+export function preloadSounds(): void {
+  getWaveSentSound();
+  getMatchSound();
+}

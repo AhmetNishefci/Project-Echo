@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { NearbyPeer, BlePermissionStatus, BleAdapterState } from "@/types";
 import { PEER_STALE_TIMEOUT_MS } from "@/services/ble/constants";
+import { useEchoStore } from "@/stores/echoStore";
 
 const MAX_PEERS = 200;
 
@@ -78,10 +79,20 @@ export const useBleStore = create<BleState>((set, get) => ({
   pruneStale: () =>
     set((state) => {
       const now = Date.now();
+      // Don't prune peers involved in active interactions (M2 fix)
+      const echoState = useEchoStore.getState();
+      const protectedTokens = new Set<string>();
+      for (const token of echoState.pendingWaves.keys()) {
+        protectedTokens.add(token);
+      }
+      for (const token of echoState.incomingWaveTokens) {
+        protectedTokens.add(token);
+      }
+
       // Check if any peers are stale before cloning the Map (L9 fix)
       let hasStale = false;
-      for (const [, peer] of state.nearbyPeers) {
-        if (now - peer.lastSeen > PEER_STALE_TIMEOUT_MS) {
+      for (const [token, peer] of state.nearbyPeers) {
+        if (now - peer.lastSeen > PEER_STALE_TIMEOUT_MS && !protectedTokens.has(token)) {
           hasStale = true;
           break;
         }
@@ -89,7 +100,7 @@ export const useBleStore = create<BleState>((set, get) => ({
       if (!hasStale) return {};
       const next = new Map(state.nearbyPeers);
       for (const [token, peer] of next) {
-        if (now - peer.lastSeen > PEER_STALE_TIMEOUT_MS) {
+        if (now - peer.lastSeen > PEER_STALE_TIMEOUT_MS && !protectedTokens.has(token)) {
           next.delete(token);
         }
       }

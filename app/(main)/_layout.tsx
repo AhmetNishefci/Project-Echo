@@ -8,6 +8,7 @@ import { useEphemeralRotation } from "@/hooks/useEphemeralRotation";
 import { useMatchListener } from "@/hooks/useMatchListener";
 import { useNotifications } from "@/hooks/useNotifications";
 import { logger } from "@/utils/logger";
+import { preloadSounds } from "@/utils/sound";
 
 export default function MainLayout() {
   const router = useRouter();
@@ -21,6 +22,17 @@ export default function MainLayout() {
     echoBleManager.initialize().catch((error) => {
       logger.error("Failed to initialize BLE manager", error);
     });
+
+    preloadSounds();
+
+    // Recover unseen matches from persisted storage (M3 fix).
+    // If the app crashed or was killed before the user saw the match
+    // celebration, re-trigger it on next launch.
+    const matches = useEchoStore.getState().matches;
+    const unseenMatch = matches.find((m) => !m.seen);
+    if (unseenMatch && !useEchoStore.getState().latestUnseenMatch) {
+      useEchoStore.setState({ latestUnseenMatch: unseenMatch });
+    }
 
     return () => {
       echoBleManager.stop();

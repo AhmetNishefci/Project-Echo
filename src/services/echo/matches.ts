@@ -6,7 +6,8 @@ import type { Match } from "@/types";
 /**
  * Fetch all matches for the current user from the server.
  * Merges with locally persisted matches (deduplicates by matchId).
- * Called on app launch as a fallback to ensure match history is complete.
+ * Uses the get_matched_instagram_handles RPC to securely fetch handles
+ * (profiles RLS only allows reading own row, so the old join returned null).
  */
 export async function fetchMatchesFromServer(): Promise<void> {
   try {
@@ -21,16 +22,7 @@ export async function fetchMatchesFromServer(): Promise<void> {
 
     const { data, error } = await supabase
       .from("matches")
-      .select(
-        `
-        id,
-        user_a,
-        user_b,
-        created_at,
-        user_a_profile:profiles!matches_user_a_fkey(instagram_handle),
-        user_b_profile:profiles!matches_user_b_fkey(instagram_handle)
-        `,
-      )
+      .select("id, user_a, user_b, created_at")
       .or(`user_a.eq.${user.id},user_b.eq.${user.id}`)
       .order("created_at", { ascending: false });
 
@@ -41,6 +33,24 @@ export async function fetchMatchesFromServer(): Promise<void> {
 
     if (!data || data.length === 0) return;
 
+    // Fetch Instagram handles via authenticated RPC
+    const matchIds = data.map((row: any) => row.id);
+    const { data: handleRows, error: handleError } = await supabase.rpc(
+      "get_matched_instagram_handles",
+      { p_match_ids: matchIds },
+    );
+
+    const handleMap = new Map<string, string>();
+    if (!handleError && handleRows) {
+      for (const row of handleRows as { match_id: string; instagram_handle: string | null }[]) {
+        if (row.instagram_handle) {
+          handleMap.set(row.match_id, row.instagram_handle);
+        }
+      }
+    } else if (handleError) {
+      logger.error("Failed to fetch match handles via RPC", handleError);
+    }
+
     const store = useEchoStore.getState();
     const existingIds = new Set(store.matches.map((m) => m.matchId));
 
@@ -49,31 +59,34 @@ export async function fetchMatchesFromServer(): Promise<void> {
       .map((row: any) => {
         const isUserA = row.user_a === user.id;
         const matchedUserId = isUserA ? row.user_b : row.user_a;
-        const matchedProfile = isUserA
-          ? row.user_b_profile
-          : row.user_a_profile;
-        const instagramHandle =
-          (Array.isArray(matchedProfile)
-            ? matchedProfile[0]?.instagram_handle
-            : matchedProfile?.instagram_handle) ?? undefined;
 
         return {
           matchId: row.id,
           matchedUserId,
-          instagramHandle,
+          instagramHandle: handleMap.get(row.id),
           createdAt: row.created_at,
           seen: true, // Server-fetched matches are treated as seen
         };
       });
 
     if (serverMatches.length > 0) {
-      // Merge server matches into the store
       for (const match of serverMatches) {
         store.addMatch(match);
       }
       logger.echo("Merged server matches into store", {
         count: serverMatches.length,
       });
+    }
+
+    // Also update handles for existing matches that may have been missing
+    for (const row of data as any[]) {
+      const handle = handleMap.get(row.id);
+      if (handle) {
+        const existing = store.matches.find((m) => m.matchId === row.id);
+        if (existing && !existing.instagramHandle) {
+          store.updateMatchHandle(row.id, handle);
+        }
+      }
     }
   } catch (err) {
     logger.error("fetchMatchesFromServer exception", err);

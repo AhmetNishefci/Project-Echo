@@ -44,6 +44,7 @@ interface EchoState {
 
   addMatch: (match: Match) => void;
   removeMatch: (matchId: string) => void;
+  updateMatchHandle: (matchId: string, instagramHandle: string) => void;
   markMatchSeen: (matchId: string) => void;
   clearMatches: () => void;
 
@@ -176,6 +177,17 @@ export const useEchoStore = create<EchoState>()(
           latestUnseenMatch:
             state.latestUnseenMatch?.matchId === matchId
               ? null
+              : state.latestUnseenMatch,
+        })),
+
+      updateMatchHandle: (matchId, instagramHandle) =>
+        set((state) => ({
+          matches: state.matches.map((m) =>
+            m.matchId === matchId ? { ...m, instagramHandle } : m,
+          ),
+          latestUnseenMatch:
+            state.latestUnseenMatch?.matchId === matchId
+              ? { ...state.latestUnseenMatch, instagramHandle }
               : state.latestUnseenMatch,
         })),
 

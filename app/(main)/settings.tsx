@@ -156,24 +156,6 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleClearMatches = () => {
-    Alert.alert(
-      "Clear Match History",
-      "This will remove all saved matches. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: () => {
-            useEchoStore.getState().clearMatches();
-            showToast("Match history cleared");
-          },
-        },
-      ],
-    );
-  };
-
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account",
@@ -482,16 +464,6 @@ export default function SettingsScreen() {
         <Text className="text-echo-muted text-xs mt-2 leading-4">
           Visible to everyone nearby. Changes appear within about 30 seconds.
         </Text>
-      </Section>
-
-      {/* Actions */}
-      <Section title="Data">
-        <TouchableOpacity
-          onPress={handleClearMatches}
-          className="py-3"
-        >
-          <Text className="text-echo-danger text-sm">Clear Match History</Text>
-        </TouchableOpacity>
       </Section>
 
       {/* Safety */}

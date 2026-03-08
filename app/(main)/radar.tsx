@@ -41,6 +41,7 @@ import { useNoteResolver } from "@/hooks/useNoteResolver";
 import { seedFakePeers, clearFakePeers } from "@/utils/seedPeers";
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 import { showPermissionBlockedAlert } from "@/services/ble/permissions";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
@@ -73,6 +74,7 @@ export default function RadarScreen() {
   const rawIncomingWaveTokens = useEchoStore((s) => s.incomingWaveTokens);
   const matchedTokens = useEchoStore((s) => s.matchedTokens);
   const genderPreference = useAuthStore((s) => s.genderPreference);
+  const { isConnected } = useNetworkStatus();
 
   // Filter peers by gender preference before display
   const filteredPeers = useMemo(() => {
@@ -323,9 +325,9 @@ export default function RadarScreen() {
 
   const renderPeer = useCallback(
     ({ item }: { item: NearbyPeer }) => (
-      <PeerRow peer={item} onWave={handleWave} onUndo={handleUndo} onPress={setSelectedPeer} />
+      <PeerRow peer={item} onWave={handleWave} onUndo={handleUndo} onPress={setSelectedPeer} isOffline={!isConnected} />
     ),
-    [handleWave, handleUndo],
+    [handleWave, handleUndo, isConnected],
   );
 
   const renderSectionHeader = useCallback(
@@ -394,6 +396,25 @@ export default function RadarScreen() {
         isAdvertising={isAdvertising}
         error={error}
       />
+
+      {/* Offline banner */}
+      {!isConnected && (
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          exiting={FadeOut.duration(200)}
+          className="bg-yellow-500/20 border border-yellow-500/40 rounded-2xl py-3 px-4 mb-4 flex-row items-center"
+        >
+          <Text className="text-lg mr-3">📡</Text>
+          <View className="flex-1">
+            <Text className="text-yellow-400 font-semibold text-sm">
+              No internet connection
+            </Text>
+            <Text className="text-echo-muted text-xs mt-0.5">
+              You can see nearby people, but waves need internet to send.
+            </Text>
+          </View>
+        </Animated.View>
+      )}
 
       {/* Incoming wave banner */}
       {incomingWaveTokens.length > 0 && (
@@ -619,11 +640,13 @@ function PeerRow({
   onWave,
   onUndo,
   onPress,
+  isOffline,
 }: {
   peer: NearbyPeer;
   onWave: (p: NearbyPeer) => void;
   onUndo: (token: string) => void;
   onPress: (p: NearbyPeer) => void;
+  isOffline: boolean;
 }) {
   const wavePending = useEchoStore(
     (s) => s.pendingWaves.get(peer.ephemeralToken) ?? null,
@@ -717,15 +740,20 @@ function PeerRow({
       ) : (
         <TouchableOpacity
           onPress={() => onWave(peer)}
+          disabled={isOffline}
           className={`rounded-lg px-3 py-1.5 ${
-            hasWavedAtMe
-              ? "bg-green-500/20 border border-green-500/40"
-              : "bg-echo-wave/20 border border-echo-wave/40"
+            isOffline
+              ? "bg-echo-muted/10 border border-echo-muted/20"
+              : hasWavedAtMe
+                ? "bg-green-500/20 border border-green-500/40"
+                : "bg-echo-wave/20 border border-echo-wave/40"
           }`}
         >
           <Text
             className={`font-semibold text-sm ${
-              hasWavedAtMe ? "text-green-400" : "text-echo-wave"
+              isOffline
+                ? "text-echo-muted"
+                : hasWavedAtMe ? "text-green-400" : "text-echo-wave"
             }`}
           >
             {hasWavedAtMe ? "Wave Back 👋" : "Wave 👋"}

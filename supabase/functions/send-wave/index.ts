@@ -267,6 +267,8 @@ serve(async (req: Request) => {
 
       // Broadcast match event to the OTHER user only
       // (the waver already gets the match from the HTTP response)
+      // NOTE: instagram_handle is intentionally excluded from broadcast payload
+      // to prevent channel eavesdropping. Clients fetch handles via authenticated RPC.
       const matchCh = adminClient.channel(`user:${result.matched_user_id}`);
       await matchCh.send({
         type: "broadcast",
@@ -274,7 +276,6 @@ serve(async (req: Request) => {
         payload: {
           ...matchPayload,
           matched_user_id: user.id,
-          instagram_handle: waverHandle,
         },
       });
       adminClient.removeChannel(matchCh);

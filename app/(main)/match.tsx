@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
-import { View, Text, TouchableOpacity, Linking, Dimensions } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, Linking, Dimensions, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -56,6 +56,19 @@ export default function MatchScreen() {
   }, [displayMatch, router]);
 
   const handle = displayMatch?.instagramHandle;
+
+  // If the handle hasn't arrived yet (RPC in-flight), show a brief loading state
+  // rather than flashing "No Instagram linked". Resolves when handle arrives
+  // or after 3s (meaning they genuinely don't have one).
+  const [handleLoading, setHandleLoading] = useState(!handle);
+  useEffect(() => {
+    if (handle) {
+      setHandleLoading(false);
+      return;
+    }
+    const timer = setTimeout(() => setHandleLoading(false), 3_000);
+    return () => clearTimeout(timer);
+  }, [handle]);
 
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
@@ -133,6 +146,13 @@ export default function MatchScreen() {
             @{handle}
           </Text>
         </TouchableOpacity>
+      ) : handleLoading ? (
+        <View className="mb-8 flex-row items-center">
+          <ActivityIndicator size="small" color="#666680" />
+          <Text className="text-echo-muted text-sm ml-2">
+            Loading Instagram...
+          </Text>
+        </View>
       ) : (
         <Text className="text-echo-muted text-sm mb-8">
           No Instagram linked

@@ -42,18 +42,23 @@ function createChannel(userId: string): void {
       const data = payload.payload as {
         match_id: string;
         matched_user_id: string;
-        instagram_handle?: string;
         created_at?: string;
       };
 
       if (data.match_id && data.matched_user_id) {
+        // Add match immediately (without handle) so the celebration screen triggers
         useEchoStore.getState().addMatch({
           matchId: data.match_id,
           matchedUserId: data.matched_user_id,
-          instagramHandle: data.instagram_handle ?? undefined,
+          instagramHandle: undefined,
           createdAt: data.created_at ?? new Date().toISOString(),
           seen: false,
         });
+
+        // Fetch the handle via authenticated RPC (not from broadcast payload)
+        fetchMatchHandle(data.match_id).catch((err) =>
+          logger.error("Failed to fetch match handle after realtime event", err),
+        );
       }
     })
     .on("broadcast", { event: "wave" }, (payload) => {
@@ -141,4 +146,25 @@ export function unsubscribeFromMatches(): void {
   currentUserId = null;
   cleanupChannel();
   logger.echo("Unsubscribed from realtime");
+}
+
+/**
+ * Fetch the matched user's Instagram handle via authenticated RPC.
+ * Updates the match in the store once retrieved.
+ */
+async function fetchMatchHandle(matchId: string): Promise<void> {
+  const { data, error } = await supabase.rpc("get_matched_instagram_handles", {
+    p_match_ids: [matchId],
+  });
+
+  if (error) {
+    logger.error("RPC get_matched_instagram_handles failed", error);
+    return;
+  }
+
+  const row = (data as { match_id: string; instagram_handle: string | null }[] | null)?.[0];
+  if (row?.instagram_handle) {
+    useEchoStore.getState().updateMatchHandle(matchId, row.instagram_handle);
+    logger.echo("Match handle fetched via RPC", { matchId, handle: row.instagram_handle });
+  }
 }

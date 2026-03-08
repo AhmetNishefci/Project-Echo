@@ -785,12 +785,8 @@ function PeerDetailModal({
 
   const openInstagram = () => {
     if (!instagramHandle) return;
-    const deepLink = `instagram://user?username=${instagramHandle}`;
-    const webUrl = `https://instagram.com/${instagramHandle}`;
-    Linking.canOpenURL(deepLink).then((supported) => {
-      Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
-    }).catch(() => {
-      Linking.openURL(webUrl).catch(() => {});
+    Linking.openURL(`instagram://user?username=${instagramHandle}`).catch(() => {
+      Linking.openURL(`https://instagram.com/${instagramHandle}`).catch(() => {});
     });
   };
 

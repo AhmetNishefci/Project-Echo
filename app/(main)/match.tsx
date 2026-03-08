@@ -94,12 +94,8 @@ export default function MatchScreen() {
 
   const openInstagram = () => {
     if (!handle) return;
-    const deepLink = `instagram://user?username=${handle}`;
-    const webUrl = `https://instagram.com/${handle}`;
-    Linking.canOpenURL(deepLink).then((supported) => {
-      Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
-    }).catch(() => {
-      Linking.openURL(webUrl).catch(() => {});
+    Linking.openURL(`instagram://user?username=${handle}`).catch(() => {
+      Linking.openURL(`https://instagram.com/${handle}`).catch(() => {});
     });
   };
 

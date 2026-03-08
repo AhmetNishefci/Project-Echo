@@ -22,7 +22,8 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { userId, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
+  const { session, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
+  const userEmail = session?.user?.email ?? null;
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);
@@ -243,8 +244,9 @@ export default function SettingsScreen() {
 
       {/* Account */}
       <Section title="Account">
-        <InfoRow label="User ID" value={userId ? userId.substring(0, 12) + "..." : "Not authenticated"} />
-        <InfoRow label="Signed in via" value="Google" />
+        {userEmail && (
+          <InfoRow label="Email" value={userEmail} />
+        )}
         {gender && (
           <InfoRow label="Gender" value={gender === "male" ? "Male" : "Female"} />
         )}
@@ -504,7 +506,7 @@ export default function SettingsScreen() {
           }}
           className="py-3"
         >
-          <Text className="text-echo-muted text-sm">Report a User</Text>
+          <Text className="text-white text-sm">Report a User</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
@@ -516,7 +518,7 @@ export default function SettingsScreen() {
           }}
           className="py-3"
         >
-          <Text className="text-echo-muted text-sm">Block a User</Text>
+          <Text className="text-white text-sm">Block a User</Text>
         </TouchableOpacity>
       </Section>
 

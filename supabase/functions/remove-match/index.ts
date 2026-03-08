@@ -19,12 +19,20 @@ serve(async (req: Request) => {
 
   try {
     // Authenticate
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
+          headers: { Authorization: authHeader },
         },
       },
     );
@@ -41,7 +49,19 @@ serve(async (req: Request) => {
       });
     }
 
-    const { match_id } = await req.json();
+    let match_id: string | undefined;
+    try {
+      const body = await req.json();
+      match_id = body.match_id;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!match_id || typeof match_id !== "string") {
       return new Response(

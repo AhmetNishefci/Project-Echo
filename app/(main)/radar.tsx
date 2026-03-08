@@ -36,6 +36,7 @@ import type { NearbyPeer, DistanceZone } from "@/types";
 import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
 import { logger } from "@/utils/logger";
 import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
+import { playWaveSent } from "@/utils/sound";
 import { useNoteResolver } from "@/hooks/useNoteResolver";
 import { seedFakePeers, clearFakePeers } from "@/utils/seedPeers";
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
@@ -258,6 +259,7 @@ export default function RadarScreen() {
     if (store.hasPendingWaveTo(peer.ephemeralToken)) return;
 
     impactMedium();
+    playWaveSent();
     store.addPendingWave(peer.ephemeralToken);
 
     logger.echo("Sending wave to peer", {
@@ -656,8 +658,6 @@ function PeerRow({
     return () => clearTimeout(timer);
   }, [wavePending, peer.ephemeralToken]);
 
-  const router = useRouter();
-
   return (
     <View
       className={`py-3 px-4 mb-2 rounded-xl flex-row items-center ${
@@ -700,8 +700,8 @@ function PeerRow({
       {/* Wave / Undo / Matched */}
       {isAlreadyMatched ? (
         <TouchableOpacity
-          onPress={() => router.push("/(main)/history")}
-          className="bg-echo-match/20 rounded-lg px-3 py-1.5"
+          onPress={() => onPress(peer)}
+          className="bg-echo-match/20 border border-echo-match/40 rounded-lg px-3 py-1.5"
         >
           <Text className="text-echo-match font-semibold text-sm">
             Matched 🤝
@@ -710,7 +710,7 @@ function PeerRow({
       ) : wavePending ? (
         <TouchableOpacity
           onPress={() => onUndo(peer.ephemeralToken)}
-          className="bg-orange-500/20 rounded-lg px-3 py-1.5"
+          className="bg-orange-500/20 border border-orange-500/40 rounded-lg px-3 py-1.5"
         >
           <Text className="text-orange-400 font-semibold text-sm">Undo</Text>
         </TouchableOpacity>
@@ -720,7 +720,7 @@ function PeerRow({
           className={`rounded-lg px-3 py-1.5 ${
             hasWavedAtMe
               ? "bg-green-500/20 border border-green-500/40"
-              : "bg-echo-wave/20"
+              : "bg-echo-wave/20 border border-echo-wave/40"
           }`}
         >
           <Text
@@ -757,25 +757,13 @@ function PeerDetailModal({
 
   const openInstagram = () => {
     if (!instagramHandle) return;
-    Alert.alert(
-      "Open Instagram",
-      `View @${instagramHandle} on Instagram?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Open",
-          onPress: () => {
-            const deepLink = `instagram://user?username=${instagramHandle}`;
-            const webUrl = `https://instagram.com/${instagramHandle}`;
-            Linking.canOpenURL(deepLink).then((supported) => {
-              Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
-            }).catch(() => {
-              Linking.openURL(webUrl).catch(() => {});
-            });
-          },
-        },
-      ],
-    );
+    const deepLink = `instagram://user?username=${instagramHandle}`;
+    const webUrl = `https://instagram.com/${instagramHandle}`;
+    Linking.canOpenURL(deepLink).then((supported) => {
+      Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
+    }).catch(() => {
+      Linking.openURL(webUrl).catch(() => {});
+    });
   };
 
   return (
@@ -835,15 +823,15 @@ function PeerDetailModal({
           {isMatched && (
             <TouchableOpacity
               onPress={() => { onClose(); router.push("/(main)/history"); }}
-              className="bg-echo-primary/20 rounded-xl py-3 items-center mb-3"
+              className="bg-echo-primary rounded-xl py-3 items-center mb-3"
             >
-              <Text className="text-echo-primary text-sm font-semibold">View All Matches</Text>
+              <Text className="text-white text-sm font-semibold">View All Matches</Text>
             </TouchableOpacity>
           )}
 
           {/* Close */}
           <TouchableOpacity onPress={onClose} className="bg-echo-bg rounded-xl py-3 items-center">
-            <Text className="text-echo-muted text-sm font-semibold">Close</Text>
+            <Text className="text-white text-sm font-semibold">Close</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>

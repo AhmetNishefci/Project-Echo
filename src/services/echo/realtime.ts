@@ -6,6 +6,9 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 let channel: RealtimeChannel | null = null;
 let currentUserId: string | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
+const RECONNECT_BASE_MS = 3_000;
+const RECONNECT_MAX_MS = 60_000;
 
 /**
  * Subscribe to match AND wave events for the given user.
@@ -77,6 +80,10 @@ function createChannel(userId: string): void {
     .subscribe((status, err) => {
       logger.echo("Realtime subscription status", { status });
 
+      if (status === "SUBSCRIBED") {
+        reconnectAttempts = 0; // Reset backoff on success
+      }
+
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
         logger.error("Realtime subscription error, scheduling reconnect", err);
         scheduleReconnect(userId);
@@ -98,14 +105,21 @@ function createChannel(userId: string): void {
 function scheduleReconnect(userId: string): void {
   if (reconnectTimer) return; // Already scheduled
 
+  // Exponential backoff: 3s, 6s, 12s, 24s, ... capped at 60s
+  const delay = Math.min(
+    RECONNECT_BASE_MS * Math.pow(2, reconnectAttempts),
+    RECONNECT_MAX_MS,
+  );
+  reconnectAttempts++;
+
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     if (currentUserId !== userId) return; // User changed, skip
 
-    logger.echo("Attempting realtime reconnect");
+    logger.echo(`Attempting realtime reconnect (attempt ${reconnectAttempts})`);
     cleanupChannel();
     createChannel(userId);
-  }, 3_000);
+  }, delay);
 }
 
 function cleanupChannel(): void {
@@ -123,6 +137,7 @@ export function unsubscribeFromMatches(): void {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+  reconnectAttempts = 0;
   currentUserId = null;
   cleanupChannel();
   logger.echo("Unsubscribed from realtime");

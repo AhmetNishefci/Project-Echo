@@ -12,20 +12,34 @@ import type { NearbyPeer, Gender } from "@/types";
 import { genderCharToGender } from "@/types";
 import { logger } from "@/utils/logger";
 
-// Track pending and recently-completed GATT connections to avoid duplicates
-const pendingGattReads = new Set<string>();
-const recentGattReads = new Map<string, number>();
-
 // Cap concurrent GATT connections to avoid exhausting iOS limit (M8 fix)
 const MAX_CONCURRENT_GATT = 4;
-
-// Batch upsert buffer — avoids creating a new Map on every BLE advertisement
-let pendingUpserts: NearbyPeer[] = [];
-let upsertTimer: ReturnType<typeof setTimeout> | null = null;
 const UPSERT_BATCH_MS = 300;
 
-/** Reference to the BleManager, set when scanning starts */
-let scannerBleManager: BleManager | null = null;
+/**
+ * Scanner session state — isolated per BLE session to prevent leaks
+ * across login/logout cycles. Each call to startScanning() binds the
+ * session; resetScannerState() clears it on destroy.
+ */
+interface ScannerSession {
+  pendingGattReads: Set<string>;
+  recentGattReads: Map<string, number>;
+  pendingUpserts: NearbyPeer[];
+  upsertTimer: ReturnType<typeof setTimeout> | null;
+  bleManager: BleManager | null;
+}
+
+let session: ScannerSession = createFreshSession();
+
+function createFreshSession(): ScannerSession {
+  return {
+    pendingGattReads: new Set(),
+    recentGattReads: new Map(),
+    pendingUpserts: [],
+    upsertTimer: null,
+    bleManager: null,
+  };
+}
 
 interface BlePayload {
   token: string;
@@ -90,7 +104,7 @@ function parseGattValue(decoded: string): BlePayload | null {
  */
 export function startScanning(bleManager: BleManager): void {
   const store = useBleStore.getState();
-  scannerBleManager = bleManager;
+  session.bleManager = bleManager;
 
   if (store.isScanning) {
     logger.ble("Already scanning, skipping");
@@ -123,13 +137,13 @@ export function stopScanning(bleManager: BleManager): void {
 
   // Flush pending upserts before clearing, so recently-discovered peers
   // are not silently dropped (H10 fix)
-  if (upsertTimer) {
-    clearTimeout(upsertTimer);
-    upsertTimer = null;
+  if (session.upsertTimer) {
+    clearTimeout(session.upsertTimer);
+    session.upsertTimer = null;
   }
-  if (pendingUpserts.length > 0) {
-    const batch = pendingUpserts;
-    pendingUpserts = [];
+  if (session.pendingUpserts.length > 0) {
+    const batch = session.pendingUpserts;
+    session.pendingUpserts = [];
     useBleStore.setState((state) => {
       const next = new Map(state.nearbyPeers);
       for (const p of batch) {
@@ -146,9 +160,9 @@ export function stopScanning(bleManager: BleManager): void {
 /** Prune stale entries from the GATT read cooldown map */
 export function pruneGattReadCache(): void {
   const now = Date.now();
-  for (const [id, ts] of recentGattReads) {
+  for (const [id, ts] of session.recentGattReads) {
     if (now - ts > GATT_READ_COOLDOWN_MS * 3) {
-      recentGattReads.delete(id);
+      session.recentGattReads.delete(id);
     }
   }
 }
@@ -158,14 +172,10 @@ export function pruneGattReadCache(): void {
  * to prevent stale references across sessions (H8 fix).
  */
 export function resetScannerState(): void {
-  pendingGattReads.clear();
-  recentGattReads.clear();
-  pendingUpserts = [];
-  if (upsertTimer) {
-    clearTimeout(upsertTimer);
-    upsertTimer = null;
+  if (session.upsertTimer) {
+    clearTimeout(session.upsertTimer);
   }
-  scannerBleManager = null;
+  session = createFreshSession();
 }
 
 function handleDiscoveredDevice(device: Device): void {
@@ -179,7 +189,7 @@ function handleDiscoveredDevice(device: Device): void {
 
   // Slow path: no local name — device is likely backgrounded on iOS.
   // Connect via GATT to read the token characteristic.
-  if (Platform.OS === "ios" && scannerBleManager) {
+  if (Platform.OS === "ios" && session.bleManager) {
     attemptGattTokenRead(device);
   }
 }
@@ -202,12 +212,12 @@ function upsertPeerWithToken(device: Device, token: string, gender: Gender | nul
   };
 
   // Batch upserts to avoid creating a new Map on every BLE advertisement
-  pendingUpserts.push(peer);
-  if (!upsertTimer) {
-    upsertTimer = setTimeout(() => {
-      const batch = pendingUpserts;
-      pendingUpserts = [];
-      upsertTimer = null;
+  session.pendingUpserts.push(peer);
+  if (!session.upsertTimer) {
+    session.upsertTimer = setTimeout(() => {
+      const batch = session.pendingUpserts;
+      session.pendingUpserts = [];
+      session.upsertTimer = null;
 
       useBleStore.setState((state) => {
         const next = new Map(state.nearbyPeers);
@@ -233,19 +243,19 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
   const deviceId = device.id;
 
   // Skip if already in-progress or recently attempted
-  if (pendingGattReads.has(deviceId)) return;
-  const lastRead = recentGattReads.get(deviceId);
+  if (session.pendingGattReads.has(deviceId)) return;
+  const lastRead = session.recentGattReads.get(deviceId);
   if (lastRead && Date.now() - lastRead < GATT_READ_COOLDOWN_MS) return;
 
   // Cap concurrent GATT connections (M8 fix)
-  if (pendingGattReads.size >= MAX_CONCURRENT_GATT) return;
+  if (session.pendingGattReads.size >= MAX_CONCURRENT_GATT) return;
 
-  pendingGattReads.add(deviceId);
+  session.pendingGattReads.add(deviceId);
 
   // Capture manager reference at call time to detect staleness (H7 fix)
-  const manager = scannerBleManager;
+  const manager = session.bleManager;
   if (!manager) {
-    pendingGattReads.delete(deviceId);
+    session.pendingGattReads.delete(deviceId);
     return;
   }
 
@@ -284,12 +294,12 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
       }
     }
 
-    recentGattReads.set(deviceId, Date.now());
+    session.recentGattReads.set(deviceId, Date.now());
   } catch (error) {
     logger.ble(`GATT read failed for ${deviceId.substring(0, 8)}: ${error}`);
-    recentGattReads.set(deviceId, Date.now());
+    session.recentGattReads.set(deviceId, Date.now());
   } finally {
-    pendingGattReads.delete(deviceId);
+    session.pendingGattReads.delete(deviceId);
     // Always disconnect to prevent connection leaks (C6 fix)
     try {
       if (manager) {

@@ -132,25 +132,13 @@ function MatchRow({ match }: { match: Match }) {
 
   const openInstagram = useCallback(() => {
     if (!handle) return;
-    Alert.alert(
-      "Open Instagram",
-      `View @${handle} on Instagram?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Open",
-          onPress: () => {
-            const deepLink = `instagram://user?username=${handle}`;
-            const webUrl = `https://instagram.com/${handle}`;
-            Linking.canOpenURL(deepLink).then((supported) => {
-              Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
-            }).catch(() => {
-              Linking.openURL(webUrl).catch(() => {});
-            });
-          },
-        },
-      ],
-    );
+    const deepLink = `instagram://user?username=${handle}`;
+    const webUrl = `https://instagram.com/${handle}`;
+    Linking.canOpenURL(deepLink).then((supported) => {
+      Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
+    }).catch(() => {
+      Linking.openURL(webUrl).catch(() => {});
+    });
   }, [handle]);
 
   const handleRemove = useCallback(() => {

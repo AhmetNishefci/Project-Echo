@@ -1,24 +1,20 @@
--- 00036: RPC function to find users eligible for daily engagement push
+-- 00038: Add local_dow to engagement eligible RPC return type
 --
--- Called hourly by the daily-engagement edge function.
--- Returns users whose local time is in the target window and who
--- pass all cooldown / activity / preference checks.
+-- The original 00036 RPC only returned is_local_weekend.
+-- The edge function needs the actual local day-of-week to pick
+-- the correct weekday variant per user's timezone (not server UTC).
 --
--- Content selection is purely time-based (weekend vs weekday evening).
--- Wave, match, and proximity events already have their own real-time
--- push notifications — daily engagement is a separate re-engagement nudge.
+-- PostgreSQL cannot change return type with CREATE OR REPLACE,
+-- so we must DROP first (safe — no dependent objects).
 
--- Index for the active-within-N-days filter
-CREATE INDEX IF NOT EXISTS idx_profiles_last_active_at
-  ON public.profiles (last_active_at DESC)
-  WHERE last_active_at IS NOT NULL;
+DROP FUNCTION IF EXISTS public.get_engagement_eligible_users(INT, INT, INT, INT, INT, INT);
 
 CREATE OR REPLACE FUNCTION public.get_engagement_eligible_users(
-  p_target_hour_start INT,     -- e.g. 18 (6 PM)
-  p_target_hour_end INT,       -- e.g. 20 (8 PM, inclusive)
-  p_active_within_days INT,    -- e.g. 7
-  p_engagement_cooldown_hours INT,  -- e.g. 24
-  p_max_ignored_sends INT,     -- e.g. 5
+  p_target_hour_start INT,
+  p_target_hour_end INT,
+  p_active_within_days INT,
+  p_engagement_cooldown_hours INT,
+  p_max_ignored_sends INT,
   p_max_results INT DEFAULT 500
 )
 RETURNS TABLE (
@@ -32,13 +28,10 @@ AS $$
 BEGIN
   RETURN QUERY
   WITH
-  -- Valid IANA timezone names from PostgreSQL catalog
   valid_timezones AS (
     SELECT name FROM pg_timezone_names
   ),
 
-  -- Users with valid timezone, push token, opted in, recently active
-  -- DISTINCT ON (p.id) picks one token per user, preferring most recent
   base_eligible AS (
     SELECT DISTINCT ON (p.id)
       p.id AS uid,
@@ -53,13 +46,11 @@ BEGIN
       AND p.timezone IS NOT NULL
       AND p.last_active_at IS NOT NULL
       AND p.last_active_at > now() - make_interval(days => p_active_within_days)
-      -- Local hour is in target window (safe — timezone validated via JOIN)
       AND EXTRACT(HOUR FROM now() AT TIME ZONE p.timezone)
           BETWEEN p_target_hour_start AND p_target_hour_end
     ORDER BY p.id, pt.updated_at DESC
   ),
 
-  -- Filter out users who received an engagement push recently
   no_recent_engagement AS (
     SELECT be.uid, be.ptoken, be.tz, be.last_active_at
     FROM base_eligible be
@@ -70,8 +61,6 @@ BEGIN
     )
   ),
 
-  -- Auto-pause: skip users who received N+ engagement sends
-  -- since their last app open (they're ignoring us)
   not_ignoring AS (
     SELECT nre.uid, nre.ptoken, nre.tz
     FROM no_recent_engagement nre
@@ -85,9 +74,7 @@ BEGIN
   SELECT
     ni.uid AS user_id,
     ni.ptoken AS push_token,
-    -- Weekend detection in user's local timezone
     EXTRACT(DOW FROM now() AT TIME ZONE ni.tz) IN (0, 6) AS is_local_weekend,
-    -- Day of week in user's local timezone (0=Sun, 1=Mon, ..., 6=Sat)
     EXTRACT(DOW FROM now() AT TIME ZONE ni.tz)::INT AS local_dow
   FROM not_ignoring ni
   LIMIT p_max_results;

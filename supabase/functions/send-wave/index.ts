@@ -20,12 +20,20 @@ serve(async (req: Request) => {
 
   try {
     // Authenticate the user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
+          headers: { Authorization: authHeader },
         },
       },
     );
@@ -43,7 +51,21 @@ serve(async (req: Request) => {
     }
 
     // Parse request body
-    const { target_ephemeral_token, action } = await req.json();
+    let target_ephemeral_token: string | undefined;
+    let action: string | undefined;
+    try {
+      const body = await req.json();
+      target_ephemeral_token = body.target_ephemeral_token;
+      action = body.action;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (
       !target_ephemeral_token ||
@@ -52,6 +74,17 @@ serve(async (req: Request) => {
     ) {
       return new Response(
         JSON.stringify({ error: "Invalid target_ephemeral_token" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Validate action is a known value (undefined/null = send wave, "undo" = undo)
+    if (action !== undefined && action !== null && action !== "undo") {
+      return new Response(
+        JSON.stringify({ error: "Invalid action" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -66,15 +66,13 @@ const WEEKEND_VARIANTS: NotificationContent[] = [
 
 function pickContent(user: EligibleUser): NotificationContent {
   if (user.is_local_weekend) {
-    // Rotate weekend variants by current UTC hour to avoid same message every weekend
-    const hourIndex = new Date().getUTCHours() % WEEKEND_VARIANTS.length;
-    return WEEKEND_VARIANTS[hourIndex];
+    // Rotate weekend variants by local DOW (0=Sun, 6=Sat) to vary across weekends
+    const weekendIndex = user.local_dow === 0 ? 0 : 1; // Sun vs Sat
+    return WEEKEND_VARIANTS[weekendIndex % WEEKEND_VARIANTS.length];
   }
 
-  // Rotate weekday variants by day of week (Mon=0 through Fri=4)
-  const day = new Date().getUTCDay();
-  // Map Sun(0)..Sat(6) to 0..4 for weekdays; fallback to 0 for edge cases
-  const dayIndex = day >= 1 && day <= 5 ? day - 1 : 0;
+  // Rotate weekday variants by user's local day of week (Mon=1..Fri=5 → index 0..4)
+  const dayIndex = user.local_dow >= 1 && user.local_dow <= 5 ? user.local_dow - 1 : 0;
   return WEEKDAY_VARIANTS[dayIndex];
 }
 
@@ -84,6 +82,7 @@ interface EligibleUser {
   user_id: string;
   push_token: string;
   is_local_weekend: boolean;
+  local_dow: number; // 0=Sun, 1=Mon, ..., 6=Sat
 }
 
 /**
@@ -102,6 +101,20 @@ serve(async (req: Request) => {
   }
 
   try {
+    // Auth check: only accept service role key (cron sends it via vault)
+    const authHeader = req.headers.get("Authorization");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const token = authHeader?.replace("Bearer ", "") ?? "";
+    if (!serviceKey || token !== serviceKey) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const startTime = Date.now();
 
     // Step 1: Find eligible users
@@ -172,6 +185,7 @@ serve(async (req: Request) => {
     // Step 3: Batch send via Expo Push API
     const sentRecords: { user_id: string; campaign: string }[] = [];
     const invalidTokens: string[] = [];
+    const receiptRecords: { receipt_id: string; push_token: string }[] = [];
 
     for (let i = 0; i < messages.length; i += EXPO_BATCH_SIZE) {
       const batch = messages.slice(i, i + EXPO_BATCH_SIZE);
@@ -205,6 +219,12 @@ serve(async (req: Request) => {
                   user_id: batch[j]._userId,
                   campaign: batch[j]._campaign,
                 });
+                if (ticket.id) {
+                  receiptRecords.push({
+                    receipt_id: ticket.id,
+                    push_token: batch[j].to,
+                  });
+                }
               }
             }
           }
@@ -238,6 +258,19 @@ serve(async (req: Request) => {
         .in("token", invalidTokens);
 
       console.log(`Cleaned up ${invalidTokens.length} invalid push tokens`);
+    }
+
+    // Store receipt IDs for deferred checking (cleanup cron verifies ~1 hour later)
+    if (receiptRecords.length > 0) {
+      const { error: receiptError } = await adminClient
+        .from("push_receipts")
+        .insert(receiptRecords);
+
+      if (receiptError) {
+        console.error("Failed to store push receipts:", receiptError);
+      } else {
+        console.log(`Stored ${receiptRecords.length} push receipt IDs for deferred checking`);
+      }
     }
 
     const elapsed = Date.now() - startTime;

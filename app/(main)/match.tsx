@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { View, Text, TouchableOpacity, Linking, Dimensions, Alert } from "react-native";
+import { View, Text, TouchableOpacity, Linking, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -9,6 +9,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { notifySuccess } from "@/utils/haptics";
+import { playMatchChime } from "@/utils/sound";
 import { useEchoStore } from "@/stores/echoStore";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
@@ -43,6 +44,7 @@ export default function MatchScreen() {
 
   useEffect(() => {
     notifySuccess();
+    playMatchChime();
   }, []);
 
   useEffect(() => {
@@ -69,25 +71,13 @@ export default function MatchScreen() {
 
   const openInstagram = () => {
     if (!handle) return;
-    Alert.alert(
-      "Open Instagram",
-      `View @${handle} on Instagram?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Open",
-          onPress: () => {
-            const deepLink = `instagram://user?username=${handle}`;
-            const webUrl = `https://instagram.com/${handle}`;
-            Linking.canOpenURL(deepLink).then((supported) => {
-              Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
-            }).catch(() => {
-              Linking.openURL(webUrl).catch(() => {});
-            });
-          },
-        },
-      ],
-    );
+    const deepLink = `instagram://user?username=${handle}`;
+    const webUrl = `https://instagram.com/${handle}`;
+    Linking.canOpenURL(deepLink).then((supported) => {
+      Linking.openURL(supported ? deepLink : webUrl).catch(() => {});
+    }).catch(() => {
+      Linking.openURL(webUrl).catch(() => {});
+    });
   };
 
   const handleDismiss = () => {

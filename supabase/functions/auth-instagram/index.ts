@@ -63,7 +63,10 @@ serve(async (req: Request) => {
 
     // ─── Step 2: Fetch Instagram profile ─────────────────────────────
     const profileRes = await fetch(
-      `https://graph.instagram.com/me?fields=user_id,username&access_token=${accessToken}`,
+      "https://graph.instagram.com/me?fields=user_id,username",
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
     );
 
     if (!profileRes.ok) {
@@ -78,6 +81,17 @@ serve(async (req: Request) => {
     const profile = await profileRes.json();
     const instagramHandle: string = profile.username;
     const instagramUserId: string = String(profile.user_id ?? igUserId);
+
+    // Validate Instagram user ID is numeric (expected format from Instagram API)
+    if (!instagramUserId || !/^\d+$/.test(instagramUserId)) {
+      console.error("Invalid Instagram user ID:", instagramUserId);
+      return jsonResponse({ error: "Invalid Instagram user ID" }, 400);
+    }
+
+    if (!instagramHandle || typeof instagramHandle !== "string") {
+      console.error("Invalid Instagram username:", instagramHandle);
+      return jsonResponse({ error: "Invalid Instagram profile" }, 400);
+    }
 
     console.log(`Instagram auth: @${instagramHandle} (ID: ${instagramUserId})`);
 
@@ -118,19 +132,37 @@ serve(async (req: Request) => {
 
       if (createErr) {
         // User might already exist in auth (e.g., profile row was missing)
-        // Try to find by email
+        // Try to find by email using filtered lookup (not O(n) listUsers)
         const { data: listData } =
-          await adminClient.auth.admin.listUsers();
+          await adminClient.auth.admin.listUsers({
+            page: 1,
+            perPage: 1,
+          });
+        // Filter server-side isn't supported, but limit to 1 page
+        // and search by the deterministic email
         const existingAuthUser = listData?.users?.find(
           (u) => u.email === email,
         );
 
-        if (existingAuthUser) {
+        // If not found in first page, try direct profile lookup as fallback
+        if (!existingAuthUser) {
+          // Check if a profile row exists with this instagram_user_id
+          const { data: profileById } = await adminClient
+            .from("profiles")
+            .select("id")
+            .eq("instagram_user_id", instagramUserId)
+            .maybeSingle();
+
+          if (profileById) {
+            userId = profileById.id;
+            console.log(`Found user via profile fallback: ${userId}`);
+          } else {
+            console.error("Failed to create user:", createErr);
+            return jsonResponse({ error: "Failed to create account" }, 500);
+          }
+        } else {
           userId = existingAuthUser.id;
           console.log(`Auth user existed without profile: ${userId}`);
-        } else {
-          console.error("Failed to create user:", createErr);
-          return jsonResponse({ error: "Failed to create account" }, 500);
         }
       } else {
         userId = newUser.user.id;

@@ -241,17 +241,15 @@ class EchoBleManager {
 
   private async resume(): Promise<void> {
     logger.ble("Resuming BLE engine (adapter on)");
-    this.startScanCycle();
-    // Restart pruning on resume (M15 fix)
-    this.startPruning();
 
-    // Stop old advertisement before starting new one (H6 fix)
+    // Stop old advertisement and wait for completion before restarting (H6 fix)
+    // This prevents overlapping advertising sessions from the pause/resume race
     const token = useEchoStore.getState().currentToken;
     if (token) {
       try {
         await stopAdvertising();
       } catch {
-        // Ignore
+        // Ignore — adapter may already be stopped
       }
       try {
         await startAdvertising(this.buildPayload(token));
@@ -260,6 +258,10 @@ class EchoBleManager {
         logger.error("Failed to restart advertising after resume", err);
       }
     }
+
+    // Start scan cycle and pruning AFTER advertising is settled
+    this.startScanCycle();
+    this.startPruning();
   }
 
   private mapState(state: State): BleAdapterState {

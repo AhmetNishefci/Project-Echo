@@ -29,12 +29,20 @@ serve(async (req: Request) => {
 
   try {
     // Authenticate user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       {
         global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
+          headers: { Authorization: authHeader },
         },
       },
     );
@@ -52,11 +60,21 @@ serve(async (req: Request) => {
     }
 
     // Parse body
-    const body = await req.json();
-    const { latitude, longitude } = body as {
-      latitude: number;
-      longitude: number;
-    };
+    let latitude: number;
+    let longitude: number;
+    try {
+      const body = await req.json();
+      latitude = body.latitude;
+      longitude = body.longitude;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (
       !Number.isFinite(latitude) ||

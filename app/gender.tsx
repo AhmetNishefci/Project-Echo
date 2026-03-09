@@ -7,7 +7,7 @@ import { saveGenderProfile } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium, impactLight } from "@/utils/haptics";
 import { AgeRangeSlider } from "@/components/AgeRangeSlider";
-import { isAtLeastAge } from "@/utils/age";
+import { getAgeFromDob, getDefaultAgeRange } from "@/utils/age";
 import type { Gender, GenderPreference } from "@/types";
 
 const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
@@ -20,21 +20,6 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
   { value: "female", label: "Women" },
   { value: "both", label: "Everyone" },
 ];
-
-/** Compute user's age from stored DOB string (YYYY-MM-DD) */
-function getAgeFromDob(dob: string): number {
-  const birth = new Date(dob + "T00:00:00");
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
-
-/** Default age range: ±5 years from user's age, clamped to 18–80 */
-function getDefaultAgeRange(userAge: number): [number, number] {
-  return [Math.max(18, userAge - 5), Math.min(80, userAge + 5)];
-}
 
 export default function GenderScreen() {
   const router = useRouter();

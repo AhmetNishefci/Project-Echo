@@ -2,6 +2,7 @@ import "../global.css";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useAuthStore } from "@/stores/authStore";
 import { supabase } from "@/services/supabase";
 import { logger } from "@/utils/logger";
@@ -25,24 +26,26 @@ export default function RootLayout() {
   }, [setSession]);
 
   return (
-    <ErrorBoundary>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: "#0a0a0a" },
-          animation: "fade",
-        }}
-      >
-        {/* Disable back gesture on onboarding screens (H2 fix) */}
-        <Stack.Screen name="login" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="birthday" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="age-blocked" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="gender" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="note" options={{ gestureEnabled: false }} />
-        <Stack.Screen name="nearby-alerts" options={{ gestureEnabled: false }} />
-      </Stack>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "#0a0a0a" },
+            animation: "fade",
+          }}
+        >
+          {/* Disable back gesture on onboarding screens (H2 fix) */}
+          <Stack.Screen name="login" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="birthday" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="age-blocked" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="gender" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="note" options={{ gestureEnabled: false }} />
+          <Stack.Screen name="nearby-alerts" options={{ gestureEnabled: false }} />
+        </Stack>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

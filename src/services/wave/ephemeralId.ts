@@ -1,6 +1,7 @@
 import { supabase } from "../supabase";
 import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
+import { getFreshSession } from "./session";
 import { logger } from "@/utils/logger";
 import type { Gender } from "@/types";
 
@@ -50,16 +51,13 @@ export async function fetchNewToken(): Promise<TokenResponse | null> {
 }
 
 async function attemptFetchToken(): Promise<TokenResponse | null> {
-  // Verify we have a valid session before calling the edge function
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const session = await getFreshSession();
 
-  if (userError || !user) {
-    logger.error("Cannot fetch token: no valid session", userError);
+  if (!session) {
+    logger.error("Cannot fetch token: no valid session");
     return null;
   }
 
-  // Let the Supabase client handle the Authorization header automatically
-  // — this uses the client's internal (freshest) session token
   const { data, error } = await supabase.functions.invoke(
     "assign-ephemeral-id",
   );

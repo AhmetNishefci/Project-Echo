@@ -257,7 +257,7 @@ function upsertPeerWithToken(device: Device, token: string, gender: Gender | nul
   }
 
   if (!existing) {
-    logger.ble(`Discovered peer: ${token.substring(0, 8)}...`, { rssi, gender });
+    logger.ble(`Discovered peer: ${token.substring(0, 8)}...`, { rssi, gender, age });
   }
 }
 

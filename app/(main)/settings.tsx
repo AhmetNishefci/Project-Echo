@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, Linking, TextInput, Switch } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
@@ -14,6 +14,7 @@ import { waveBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
 import { Toast, type ToastVariant } from "@/components/Toast";
 import { AgeRangeSlider } from "@/components/AgeRangeSlider";
+import { getAgeFromDob } from "@/utils/age";
 import type { GenderPreference } from "@/types";
 
 const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
@@ -42,6 +43,13 @@ export default function SettingsScreen() {
   const [savingDailyPushes, setSavingDailyPushes] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastVariant, setToastVariant] = useState<ToastVariant>("success");
+
+  // Clean up debounce timer on unmount to avoid state updates on unmounted component
+  useEffect(() => {
+    return () => {
+      if (ageSaveTimer.current) clearTimeout(ageSaveTimer.current);
+    };
+  }, []);
 
   const showToast = (msg: string, variant: ToastVariant = "success") => {
     setToastVariant(variant);
@@ -255,7 +263,7 @@ export default function SettingsScreen() {
         {dateOfBirth && (
           <>
             <InfoRow label="Birthday" value={formatDob(dateOfBirth)} />
-            <InfoRow label="Age" value={`${getAge(dateOfBirth)}`} />
+            <InfoRow label="Age" value={`${getAgeFromDob(dateOfBirth)}`} />
           </>
         )}
         {(gender || dateOfBirth) && (
@@ -608,17 +616,6 @@ export default function SettingsScreen() {
     <Toast message={toastMessage} variant={toastVariant} onDismiss={() => setToastMessage(null)} />
     </>
   );
-}
-
-function getAge(dob: string): number {
-  const birth = new Date(dob + "T00:00:00");
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
 }
 
 function formatDob(dob: string): string {

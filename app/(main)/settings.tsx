@@ -22,7 +22,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { session, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
+  const { session, dateOfBirth, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
   const totalMatches = useWaveStore((s) => s.matches.length);
   const userEmail = session?.user?.email ?? null;
   const router = useRouter();
@@ -233,9 +233,15 @@ export default function SettingsScreen() {
         {gender && (
           <InfoRow label="Gender" value={gender === "male" ? "Male" : "Female"} />
         )}
-        {gender && (
+        {dateOfBirth && (
+          <>
+            <InfoRow label="Birthday" value={formatDob(dateOfBirth)} />
+            <InfoRow label="Age" value={`${getAge(dateOfBirth)}`} />
+          </>
+        )}
+        {(gender || dateOfBirth) && (
           <Text className="text-wave-muted text-xs mt-2 leading-4">
-            Gender is set during signup and cannot be changed.
+            Gender and date of birth are set during signup and cannot be changed.
           </Text>
         )}
       </Section>
@@ -569,6 +575,23 @@ export default function SettingsScreen() {
     <Toast message={toastMessage} variant={toastVariant} onDismiss={() => setToastMessage(null)} />
     </>
   );
+}
+
+function getAge(dob: string): number {
+  const birth = new Date(dob + "T00:00:00");
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const monthDiff = today.getMonth() - birth.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+    age--;
+  }
+  return age;
+}
+
+function formatDob(dob: string): string {
+  const d = new Date(dob + "T00:00:00");
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 function Section({

@@ -296,7 +296,7 @@ export default function RadarScreen() {
       setToast({ message: "Wave undone" });
     } else {
       notifyError();
-      Alert.alert("Undo Failed", "Could not undo the wave. It may have already been matched or expired.");
+      setToast({ message: "Could not undo wave. It may have been matched or expired.", variant: "error" });
     }
   }, []);
 

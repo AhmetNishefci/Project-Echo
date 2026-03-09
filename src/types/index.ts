@@ -20,6 +20,7 @@ export interface NearbyPeer {
   lastSeen: number;
   discoveredAt: number;
   gender: Gender | null;
+  age: number | null;
   note: string | null;
 }
 

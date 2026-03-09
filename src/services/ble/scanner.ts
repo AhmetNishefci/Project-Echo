@@ -47,54 +47,77 @@ function createFreshSession(): ScannerSession {
 interface BlePayload {
   token: string;
   gender: Gender | null;
+  age: number | null;
 }
 
 /**
- * Extract the ephemeral token and gender from a device's local name.
- * Format: "E:{gender_char}{16-char-hex-token}" (e.g. "E:Mabc123def456a7b8")
- * Falls back to legacy format "E:{16-char-hex-token}" for compatibility.
+ * Extract the ephemeral token, gender, and age from a device's local name.
+ * Formats (after "E:" prefix):
+ *   19 chars: "{gender}{age2digits}{16-hex-token}" (e.g. "E:M23abc123def456a7b8")
+ *   17 chars: "{gender}{16-hex-token}" (e.g. "E:Mabc123def456a7b8")
+ *   16 chars: "{16-hex-token}" (legacy, no gender/age)
  */
 function extractPayload(device: Device): BlePayload | null {
   const name = device.localName ?? device.name;
   if (!name || !name.startsWith(LOCAL_NAME_PREFIX)) return null;
   const raw = name.slice(LOCAL_NAME_PREFIX.length);
 
-  // New format: gender char + 16 hex chars (17 total)
+  // New format: gender char + 2-digit age + 16 hex chars (19 total)
+  if (raw.length === 19) {
+    const gender = genderCharToGender(raw[0]);
+    const ageStr = raw.slice(1, 3);
+    const token = raw.slice(3).toLowerCase();
+    if (/^\d{2}$/.test(ageStr) && /^[0-9a-f]{16}$/.test(token)) {
+      return { token, gender, age: parseInt(ageStr, 10) };
+    }
+  }
+
+  // Gender-only format: gender char + 16 hex chars (17 total)
   if (raw.length === 17) {
     const gender = genderCharToGender(raw[0]);
     const token = raw.slice(1).toLowerCase(); // Case-insensitive (M11 fix)
     if (/^[0-9a-f]{16}$/.test(token)) {
-      return { token, gender };
+      return { token, gender, age: null };
     }
   }
 
-  // Legacy format: 16 hex chars (no gender)
+  // Legacy format: 16 hex chars (no gender/age)
   const rawLower = raw.toLowerCase(); // Case-insensitive (M11 fix)
   if (rawLower.length === 16 && /^[0-9a-f]{16}$/.test(rawLower)) {
-    return { token: rawLower, gender: null };
+    return { token: rawLower, gender: null, age: null };
   }
 
   return null;
 }
 
 /**
- * Parse a raw GATT characteristic value into token + gender.
- * Handles both new format (gender char + 16 hex) and legacy (16 hex).
+ * Parse a raw GATT characteristic value into token + gender + age.
+ * Formats: 19 chars (gender+age+token), 17 chars (gender+token), 16 chars (token only).
  */
 function parseGattValue(decoded: string): BlePayload | null {
-  // New format: gender char + 16 hex chars
+  // Full format: gender char + 2-digit age + 16 hex chars
+  if (decoded.length === 19) {
+    const gender = genderCharToGender(decoded[0]);
+    const ageStr = decoded.slice(1, 3);
+    const token = decoded.slice(3).toLowerCase();
+    if (/^\d{2}$/.test(ageStr) && /^[0-9a-f]{16}$/.test(token)) {
+      return { token, gender, age: parseInt(ageStr, 10) };
+    }
+  }
+
+  // Gender-only format: gender char + 16 hex chars
   if (decoded.length === 17) {
     const gender = genderCharToGender(decoded[0]);
     const token = decoded.slice(1).toLowerCase(); // Case-insensitive (M11 fix)
     if (/^[0-9a-f]{16}$/.test(token)) {
-      return { token, gender };
+      return { token, gender, age: null };
     }
   }
 
   // Legacy format: 16 hex chars
   const lower = decoded.toLowerCase(); // Case-insensitive (M11 fix)
   if (lower.length === 16 && /^[0-9a-f]{16}$/.test(lower)) {
-    return { token: lower, gender: null };
+    return { token: lower, gender: null, age: null };
   }
 
   return null;
@@ -186,7 +209,7 @@ function handleDiscoveredDevice(device: Device): void {
 
   if (payload) {
     // Fast path: got token from local name (foreground advertising)
-    upsertPeerWithToken(device, payload.token, payload.gender);
+    upsertPeerWithToken(device, payload.token, payload.gender, payload.age);
     return;
   }
 
@@ -197,7 +220,7 @@ function handleDiscoveredDevice(device: Device): void {
   }
 }
 
-function upsertPeerWithToken(device: Device, token: string, gender: Gender | null): void {
+function upsertPeerWithToken(device: Device, token: string, gender: Gender | null, age: number | null = null): void {
   const deviceId = device.id;
   const rssi = device.rssi ?? -100;
   const now = Date.now();
@@ -211,6 +234,7 @@ function upsertPeerWithToken(device: Device, token: string, gender: Gender | nul
     lastSeen: now,
     discoveredAt: existing?.discoveredAt ?? now,
     gender: gender ?? existing?.gender ?? null,
+    age: age ?? existing?.age ?? null,
     note: existing?.note ?? null,
   };
 
@@ -297,7 +321,7 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
             logger.ble(
               `GATT read token: ${payload.token.substring(0, 8)}... from ${deviceId.substring(0, 8)}`,
             );
-            upsertPeerWithToken(device, payload.token, payload.gender);
+            upsertPeerWithToken(device, payload.token, payload.gender, payload.age);
           } else {
             logger.ble(`GATT read invalid token format from ${deviceId.substring(0, 8)}: len=${decoded.length}`);
           }

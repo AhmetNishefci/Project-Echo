@@ -80,6 +80,7 @@ const NAMES = [
 function generatePeers(): NearbyPeer[] {
   const now = Date.now();
   const genders: ("male" | "female" | null)[] = ["female", "male", "female", "male", "female", "male", null, "female", "male", "female", "male", null];
+  const ages: (number | null)[] = [22, 25, 19, 28, 21, 33, null, 20, 27, 24, 31, 18, 23, 26, 35, 29, null, 22, 40, 19];
   const peers: NearbyPeer[] = [];
 
   for (let i = 0; i < NAMES.length; i++) {
@@ -103,6 +104,7 @@ function generatePeers(): NearbyPeer[] {
       lastSeen: now,
       discoveredAt: i < 5 ? now : now - (i * 30_000),
       gender: genders[i % genders.length],
+      age: ages[i % ages.length],
       note: NAMES[i],
     });
   }

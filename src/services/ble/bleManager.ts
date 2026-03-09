@@ -68,11 +68,16 @@ class WaveBleManager {
   }
 
   /**
-   * Build the BLE payload string from the current token and gender.
-   * Format: "{genderChar}{token}" — native module prepends "E:" for local name.
+   * Build the BLE payload string from the current token, gender, and age.
+   * Format: "{genderChar}{age2digits}{token}" — native module prepends "E:" for local name.
+   * Falls back to "{genderChar}{token}" if age is unavailable.
    */
   private buildPayload(token: string): string {
-    const gender = useAuthStore.getState().gender;
+    const { gender, age } = useAuthStore.getState();
+    if (gender && age != null) {
+      const ageStr = String(Math.min(Math.max(age, 18), 99)).padStart(2, "0");
+      return genderToChar(gender) + ageStr + token;
+    }
     if (gender) {
       return genderToChar(gender) + token;
     }

@@ -10,7 +10,10 @@ interface AuthState {
   dateOfBirth: string | null;
   instagramHandle: string | null;
   gender: Gender | null;
+  age: number | null;
   genderPreference: GenderPreference | null;
+  agePreferenceMin: number | null;
+  agePreferenceMax: number | null;
   note: string | null;
   nearbyAlertsEnabled: boolean;
   dailyPushesEnabled: boolean;
@@ -20,7 +23,9 @@ interface AuthState {
   setDateOfBirth: (dob: string | null) => void;
   setInstagramHandle: (handle: string | null) => void;
   setGender: (gender: Gender | null) => void;
+  setAge: (age: number | null) => void;
   setGenderPreference: (pref: GenderPreference | null) => void;
+  setAgePreference: (min: number | null, max: number | null) => void;
   setNote: (note: string | null) => void;
   setNearbyAlertsEnabled: (enabled: boolean) => void;
   setDailyPushesEnabled: (enabled: boolean) => void;
@@ -35,7 +40,10 @@ export const useAuthStore = create<AuthState>((set) => ({
   dateOfBirth: null,
   instagramHandle: null,
   gender: null,
+  age: null,
   genderPreference: null,
+  agePreferenceMin: null,
+  agePreferenceMax: null,
   note: null,
   nearbyAlertsEnabled: true,
   dailyPushesEnabled: true,
@@ -56,7 +64,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setGender: (gender) => set({ gender }),
 
+  setAge: (age) => set({ age }),
+
   setGenderPreference: (genderPreference) => set({ genderPreference }),
+
+  setAgePreference: (agePreferenceMin, agePreferenceMax) =>
+    set({ agePreferenceMin, agePreferenceMax }),
 
   setNote: (note) => set({ note }),
 
@@ -73,7 +86,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       dateOfBirth: null,
       instagramHandle: null,
       gender: null,
+      age: null,
       genderPreference: null,
+      agePreferenceMin: null,
+      agePreferenceMax: null,
       note: null,
       nearbyAlertsEnabled: true,
       dailyPushesEnabled: true,

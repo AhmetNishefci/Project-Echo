@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Modal, Linking, TextInput, Switch } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
@@ -7,12 +7,13 @@ import { useBleStore } from "@/stores/bleStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
-import { saveInstagramHandle, updateGenderPreference, saveNote, saveNearbyAlertsPreference, saveDailyPushesPreference } from "@/services/profile";
+import { saveInstagramHandle, updateGenderPreference, updateAgePreference, saveNote, saveNearbyAlertsPreference, saveDailyPushesPreference } from "@/services/profile";
 import { requestLocationPermission, hasLocationPermission, isLocationBlocked } from "@/services/location";
 import { supabase } from "@/services/supabase";
 import { waveBleManager } from "@/services/ble/bleManager";
 import { impactLight } from "@/utils/haptics";
 import { Toast, type ToastVariant } from "@/components/Toast";
+import { AgeRangeSlider } from "@/components/AgeRangeSlider";
 import type { GenderPreference } from "@/types";
 
 const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
@@ -22,7 +23,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { session, dateOfBirth, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
+  const { session, dateOfBirth, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, agePreferenceMin, agePreferenceMax, setAgePreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
   const totalMatches = useWaveStore((s) => s.matches.length);
   const userEmail = session?.user?.email ?? null;
   const router = useRouter();
@@ -32,6 +33,8 @@ export default function SettingsScreen() {
   const [handleInput, setHandleInput] = useState(instagramHandle ?? "");
   const [savingHandle, setSavingHandle] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
+  const [savingAgePref, setSavingAgePref] = useState(false);
+  const ageSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [editingNote, setEditingNote] = useState(false);
   const [noteInput, setNoteInput] = useState(note ?? "");
   const [savingNote, setSavingNote] = useState(false);
@@ -81,6 +84,22 @@ export default function SettingsScreen() {
       showToast("Could not update preference. Try again.", "error");
     }
   };
+
+  // Debounced save: update store immediately, persist to server after 500ms
+  const handleAgePreferenceChange = useCallback((min: number, max: number) => {
+    setAgePreference(min, max);
+    if (ageSaveTimer.current) clearTimeout(ageSaveTimer.current);
+    ageSaveTimer.current = setTimeout(async () => {
+      setSavingAgePref(true);
+      const success = await updateAgePreference(min, max);
+      setSavingAgePref(false);
+      if (success) {
+        showToast(`Age range: ${min}–${max}`);
+      } else {
+        showToast("Could not update age range. Try again.", "error");
+      }
+    }, 500);
+  }, [setAgePreference, showToast]);
 
   const handleToggleAlerts = async (enabled: boolean) => {
     if (savingAlerts) return;
@@ -286,8 +305,22 @@ export default function SettingsScreen() {
         {savingPreference && (
           <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
         )}
+
+        {/* Age Range */}
+        <View className="mt-4 pt-4 border-t border-wave-bg">
+          <Text className="text-wave-muted text-xs mb-3">Age range</Text>
+          <AgeRangeSlider
+            min={agePreferenceMin ?? 18}
+            max={agePreferenceMax ?? 80}
+            onChangeEnd={handleAgePreferenceChange}
+          />
+          {savingAgePref && (
+            <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
+          )}
+        </View>
+
         <Text className="text-wave-muted text-xs mt-3 leading-4">
-          Only people matching your preference will appear on your radar.
+          Only people matching your preferences will appear on your radar.
         </Text>
       </Section>
 

@@ -11,6 +11,8 @@ export interface UserProfile {
   instagramHandle: string | null;
   gender: Gender | null;
   genderPreference: GenderPreference | null;
+  agePreferenceMin: number | null;
+  agePreferenceMax: number | null;
   note: string | null;
   nearbyAlertsEnabled: boolean;
   nearbyAlertsOnboarded: boolean;
@@ -33,7 +35,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("date_of_birth, instagram_handle, gender, gender_preference, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
+      .select("date_of_birth, instagram_handle, gender, gender_preference, age_preference_min, age_preference_max, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -47,6 +49,8 @@ export async function fetchProfile(): Promise<UserProfile | null> {
       instagramHandle: data?.instagram_handle ?? null,
       gender: data?.gender ?? null,
       genderPreference: data?.gender_preference ?? null,
+      agePreferenceMin: data?.age_preference_min ?? null,
+      agePreferenceMax: data?.age_preference_max ?? null,
       note: data?.note ?? null,
       nearbyAlertsEnabled: data?.nearby_alerts_enabled ?? true,
       nearbyAlertsOnboarded: data?.nearby_alerts_onboarded ?? false,
@@ -117,12 +121,14 @@ export async function saveDateOfBirth(dob: string): Promise<boolean> {
 }
 
 /**
- * Save gender and gender preference to the user's profile.
+ * Save gender, gender preference, and age preference to the user's profile.
  * Called during onboarding (gender is set once and locked).
  */
 export async function saveGenderProfile(
   gender: Gender,
   genderPreference: GenderPreference,
+  agePreferenceMin?: number,
+  agePreferenceMax?: number,
 ): Promise<boolean> {
   try {
     const {
@@ -134,9 +140,16 @@ export async function saveGenderProfile(
       return false;
     }
 
+    const updates: Record<string, unknown> = {
+      gender,
+      gender_preference: genderPreference,
+    };
+    if (agePreferenceMin !== undefined) updates.age_preference_min = agePreferenceMin;
+    if (agePreferenceMax !== undefined) updates.age_preference_max = agePreferenceMax;
+
     const { data: updated, error } = await supabase
       .from("profiles")
-      .update({ gender, gender_preference: genderPreference })
+      .update(updates)
       .eq("id", user.id)
       .select("id");
 
@@ -152,7 +165,7 @@ export async function saveGenderProfile(
       const { error: upsertError } = await supabase
         .from("profiles")
         .upsert(
-          { id: user.id, gender, gender_preference: genderPreference },
+          { id: user.id, ...updates },
           { onConflict: "id" },
         );
 
@@ -162,7 +175,7 @@ export async function saveGenderProfile(
       }
     }
 
-    logger.auth("Gender profile saved", { gender, genderPreference });
+    logger.auth("Gender profile saved", { gender, genderPreference, agePreferenceMin, agePreferenceMax });
     return true;
   } catch (err) {
     logger.error("saveGenderProfile exception", err);
@@ -200,6 +213,41 @@ export async function updateGenderPreference(
     return true;
   } catch (err) {
     logger.error("updateGenderPreference exception", err);
+    return false;
+  }
+}
+
+/**
+ * Update the user's age preference range (changeable from settings).
+ */
+export async function updateAgePreference(
+  min: number,
+  max: number,
+): Promise<boolean> {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("updateAgePreference: no user");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ age_preference_min: min, age_preference_max: max })
+      .eq("id", user.id);
+
+    if (error) {
+      logger.error("updateAgePreference error", error);
+      return false;
+    }
+
+    logger.auth("Age preference updated", { min, max });
+    return true;
+  } catch (err) {
+    logger.error("updateAgePreference exception", err);
     return false;
   }
 }

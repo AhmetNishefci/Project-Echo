@@ -64,7 +64,7 @@ serve(async (req: Request) => {
         },
         { onConflict: "id" },
       )
-      .select("gender, note")
+      .select("gender, note, date_of_birth")
       .single();
 
     if (profileError) {
@@ -119,12 +119,25 @@ serve(async (req: Request) => {
       );
     }
 
+    // Compute age from date_of_birth
+    let age: number | null = null;
+    if (profileData?.date_of_birth) {
+      const dob = new Date(profileData.date_of_birth + "T00:00:00Z");
+      const now = new Date();
+      age = now.getUTCFullYear() - dob.getUTCFullYear();
+      const monthDiff = now.getUTCMonth() - dob.getUTCMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < dob.getUTCDate())) {
+        age--;
+      }
+    }
+
     return new Response(
       JSON.stringify({
         token: data.token,
         expires_at: data.expires_at,
         gender: profileData?.gender ?? null,
         note: profileData?.note ?? null,
+        age,
       }),
       {
         status: 200,

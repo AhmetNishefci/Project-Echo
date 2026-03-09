@@ -9,6 +9,7 @@ interface TokenResponse {
   expires_at: string;
   gender: Gender | null;
   note: string | null;
+  age: number | null;
 }
 
 const MAX_RETRIES = 3;
@@ -88,10 +89,11 @@ async function attemptFetchToken(): Promise<TokenResponse | null> {
   const expiresAtMs = new Date(result.expires_at).getTime();
   useWaveStore.getState().setToken(result.token, expiresAtMs);
 
-  // Sync gender from server (keeps authStore in sync during rotations)
+  // Sync gender and age from server (keeps authStore in sync during rotations)
   if (result.gender) {
     useAuthStore.getState().setGender(result.gender);
   }
+  useAuthStore.getState().setAge(result.age ?? null);
 
   // Sync note from server
   useAuthStore.getState().setNote(result.note ?? null);

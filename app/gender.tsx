@@ -1,11 +1,13 @@
-import { useEffect, useState, useRef } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { saveGenderProfile } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium, impactLight } from "@/utils/haptics";
+import { AgeRangeSlider } from "@/components/AgeRangeSlider";
+import { isAtLeastAge } from "@/utils/age";
 import type { Gender, GenderPreference } from "@/types";
 
 const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
@@ -19,14 +21,37 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
   { value: "both", label: "Everyone" },
 ];
 
+/** Compute user's age from stored DOB string (YYYY-MM-DD) */
+function getAgeFromDob(dob: string): number {
+  const birth = new Date(dob + "T00:00:00");
+  const today = new Date();
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+/** Default age range: ±5 years from user's age, clamped to 18–80 */
+function getDefaultAgeRange(userAge: number): [number, number] {
+  return [Math.max(18, userAge - 5), Math.min(80, userAge + 5)];
+}
+
 export default function GenderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const existingGender = useAuthStore((s) => s.gender);
+  const dateOfBirth = useAuthStore((s) => s.dateOfBirth);
   // Default to null so user must actively choose (M3 fix)
   const [gender, setGender] = useState<Gender | null>(null);
   const [preference, setPreference] = useState<GenderPreference | null>(null);
+
+  // Age preference with smart default from DOB
+  const userAge = dateOfBirth ? getAgeFromDob(dateOfBirth) : 25;
+  const [defaultMin, defaultMax] = getDefaultAgeRange(userAge);
+  const [ageMin, setAgeMin] = useState(defaultMin);
+  const [ageMax, setAgeMax] = useState(defaultMax);
+
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
 
@@ -55,7 +80,7 @@ export default function GenderScreen() {
     impactMedium();
     setSaving(true);
 
-    const success = await saveGenderProfile(gender, preference);
+    const success = await saveGenderProfile(gender, preference, ageMin, ageMax);
     setSaving(false);
     savingRef.current = false;
 
@@ -66,13 +91,27 @@ export default function GenderScreen() {
 
     useAuthStore.getState().setGender(gender);
     useAuthStore.getState().setGenderPreference(preference);
+    useAuthStore.getState().setAgePreference(ageMin, ageMax);
     router.replace("/onboarding");
   };
 
+  const handleAgeChange = useCallback((lo: number, hi: number) => {
+    setAgeMin(lo);
+    setAgeMax(hi);
+  }, []);
+
   return (
-    <View
-      className="flex-1 bg-wave-bg items-center justify-center px-8"
-      style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
+    <ScrollView
+      className="flex-1 bg-wave-bg"
+      contentContainerStyle={{
+        flexGrow: 1,
+        justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 32,
+        paddingTop: insets.top + 16,
+        paddingBottom: insets.bottom + 16,
+      }}
+      keyboardShouldPersistTaps="handled"
     >
       {/* Icon */}
       <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
@@ -158,6 +197,14 @@ export default function GenderScreen() {
         })}
       </View>
 
+      {/* Age Preference */}
+      <Text className="text-wave-muted text-xs uppercase tracking-wider self-start mb-3">
+        Age range
+      </Text>
+      <View className="w-full bg-wave-surface rounded-2xl p-4 mb-8">
+        <AgeRangeSlider min={ageMin} max={ageMax} onChangeEnd={handleAgeChange} />
+      </View>
+
       {/* Continue Button */}
       <TouchableOpacity
         onPress={handleContinue}
@@ -181,8 +228,8 @@ export default function GenderScreen() {
       </TouchableOpacity>
 
       <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
-        You can change your discovery preference later in settings.
+        You can change your discovery preferences later in settings.
       </Text>
-    </View>
+    </ScrollView>
   );
 }

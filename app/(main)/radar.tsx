@@ -62,22 +62,32 @@ export default function RadarScreen() {
   const rawIncomingWaveTokens = useWaveStore((s) => s.incomingWaveTokens);
   const matchedTokens = useWaveStore((s) => s.matchedTokens);
   const genderPreference = useAuthStore((s) => s.genderPreference);
+  const agePreferenceMin = useAuthStore((s) => s.agePreferenceMin);
+  const agePreferenceMax = useAuthStore((s) => s.agePreferenceMax);
   const { isConnected } = useNetworkStatus();
 
-  // Filter peers by gender preference before display
+  // Filter peers by gender and age preferences before display
   const filteredPeers = useMemo(() => {
-    if (!genderPreference || genderPreference === "both") {
-      return nearbyPeers;
-    }
     const filtered = new Map<string, NearbyPeer>();
+    const filterGender = genderPreference && genderPreference !== "both";
+    const filterAge = agePreferenceMin != null && agePreferenceMax != null;
+
     for (const [token, peer] of nearbyPeers) {
-      // Show peers whose gender matches preference, or whose gender is unknown
-      if (!peer.gender || peer.gender === genderPreference) {
-        filtered.set(token, peer);
+      // Gender filter: show if no preference, preference is "both", gender matches, or gender unknown
+      if (filterGender && peer.gender && peer.gender !== genderPreference) {
+        continue;
       }
+      // Age filter: show if no preference set, age matches range, or age unknown
+      if (filterAge && peer.age != null) {
+        if (peer.age < agePreferenceMin || peer.age > agePreferenceMax) {
+          continue;
+        }
+      }
+      filtered.set(token, peer);
     }
+
     return filtered;
-  }, [nearbyPeers, genderPreference]);
+  }, [nearbyPeers, genderPreference, agePreferenceMin, agePreferenceMax]);
 
   // Only count incoming waves from wavers still visible on the radar
   // AND matching gender preference (prevent phantom wave notifications).

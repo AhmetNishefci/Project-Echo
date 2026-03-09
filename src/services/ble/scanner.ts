@@ -15,6 +15,7 @@ import { logger } from "@/utils/logger";
 // Cap concurrent GATT connections to avoid exhausting iOS limit (M8 fix)
 const MAX_CONCURRENT_GATT = 4;
 const UPSERT_BATCH_MS = 300;
+const MAX_GATT_QUEUE = 20; // Cap queued GATT reads to avoid unbounded growth
 
 /**
  * Scanner session state — isolated per BLE session to prevent leaks
@@ -23,6 +24,7 @@ const UPSERT_BATCH_MS = 300;
  */
 interface ScannerSession {
   pendingGattReads: Set<string>;
+  gattQueue: Device[]; // Queued devices waiting for a GATT slot
   recentGattReads: Map<string, number>;
   pendingUpserts: NearbyPeer[];
   upsertTimer: ReturnType<typeof setTimeout> | null;
@@ -34,6 +36,7 @@ let session: ScannerSession = createFreshSession();
 function createFreshSession(): ScannerSession {
   return {
     pendingGattReads: new Set(),
+    gattQueue: [],
     recentGattReads: new Map(),
     pendingUpserts: [],
     upsertTimer: null,
@@ -238,6 +241,7 @@ function upsertPeerWithToken(device: Device, token: string, gender: Gender | nul
  * Connect to a discovered device via GATT to read its ephemeral token.
  * Used when the device is advertising in background mode and iOS has
  * stripped the local name from the advertising packet.
+ * Queues the read if at concurrent cap, and drains queue when slots open.
  */
 async function attemptGattTokenRead(device: Device): Promise<void> {
   const deviceId = device.id;
@@ -247,8 +251,18 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
   const lastRead = session.recentGattReads.get(deviceId);
   if (lastRead && Date.now() - lastRead < GATT_READ_COOLDOWN_MS) return;
 
-  // Cap concurrent GATT connections (M8 fix)
-  if (session.pendingGattReads.size >= MAX_CONCURRENT_GATT) return;
+  // Queue if at concurrent cap (M8 fix + queue improvement)
+  if (session.pendingGattReads.size >= MAX_CONCURRENT_GATT) {
+    // Only queue if not already queued and queue isn't full
+    if (
+      session.gattQueue.length < MAX_GATT_QUEUE &&
+      !session.gattQueue.some((d) => d.id === deviceId)
+    ) {
+      session.gattQueue.push(device);
+      logger.ble(`GATT read queued (${session.gattQueue.length}/${MAX_GATT_QUEUE}): ${deviceId.substring(0, 8)}`);
+    }
+    return;
+  }
 
   session.pendingGattReads.add(deviceId);
 
@@ -307,6 +321,14 @@ async function attemptGattTokenRead(device: Device): Promise<void> {
       }
     } catch {
       // Ignore disconnect errors — device may already be disconnected
+    }
+
+    // Drain queue: process next queued device now that a slot is free
+    if (session.gattQueue.length > 0 && session.pendingGattReads.size < MAX_CONCURRENT_GATT) {
+      const next = session.gattQueue.shift();
+      if (next) {
+        attemptGattTokenRead(next);
+      }
     }
   }
 }

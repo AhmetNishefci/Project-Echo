@@ -1,7 +1,8 @@
-import { View, Text, SectionList, TouchableOpacity, Linking, Share, Alert, ActionSheetIOS, Platform } from "react-native";
-import { useMemo, useEffect, useRef, useCallback } from "react";
+import { View, Text, SectionList, TouchableOpacity, Linking, Share, Alert, ActionSheetIOS, Platform, ActivityIndicator } from "react-native";
+import { useMemo, useEffect, useRef, useCallback, useState } from "react";
 import { useWaveStore } from "@/stores/waveStore";
 import { removeMatchFromServer } from "@/services/wave/waves";
+import { loadMoreMatches } from "@/services/wave/matches";
 import type { Match } from "@/types";
 
 /** Group matches by date (Today, Yesterday, Earlier) */
@@ -37,8 +38,28 @@ function groupByDate(matches: Match[]) {
 
 export default function HistoryScreen() {
   const matches = useWaveStore((s) => s.matches);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const sections = useMemo(() => groupByDate(matches), [matches]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || matches.length === 0) return;
+
+    // Use oldest match's createdAt as cursor
+    const sorted = [...matches].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+    );
+    const cursor = sorted[0].createdAt;
+
+    setLoadingMore(true);
+    try {
+      const more = await loadMoreMatches(cursor);
+      setHasMore(more);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, hasMore, matches]);
 
   // Mark all unseen matches as seen when this screen is visible (L13 fix)
   // Track which match IDs we've already marked to avoid re-running,
@@ -116,6 +137,15 @@ export default function HistoryScreen() {
           renderItem={({ item }) => <MatchRow match={item} />}
           contentContainerStyle={{ paddingBottom: 100 }}
           stickySectionHeadersEnabled={false}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            loadingMore ? (
+              <View className="py-4 items-center">
+                <ActivityIndicator size="small" color="#666680" />
+              </View>
+            ) : null
+          }
         />
       )}
     </View>

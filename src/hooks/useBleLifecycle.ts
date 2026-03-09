@@ -5,8 +5,11 @@ import { useBleStore } from "@/stores/bleStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
 import { fetchNewToken } from "@/services/wave/ephemeralId";
+import { fetchMatchesFromServer } from "@/services/wave/matches";
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 import { logger } from "@/utils/logger";
+
+const WAVE_EXPIRY_MS = 15 * 60_000; // 15 minutes — matches server-side wave lifetime
 
 /**
  * Manages BLE lifecycle with app state transitions.
@@ -53,6 +56,26 @@ export function useBleLifecycle() {
             waveBleManager.restartScanCycle();
             logger.ble("App foregrounded — scan cycle restarted at full speed");
           }
+
+          // Reconcile pending waves: expire stale ones (>15 min) and fetch
+          // matches from server to catch any created during network drops
+          const { pendingWaves } = useWaveStore.getState();
+          if (pendingWaves.size > 0) {
+            const now = Date.now();
+            for (const [token, wave] of pendingWaves) {
+              if (now - wave.sentAt > WAVE_EXPIRY_MS) {
+                useWaveStore.getState().removePendingWave(token);
+                logger.wave("Expired stale pending wave on foreground", {
+                  token: token.substring(0, 8),
+                });
+              }
+            }
+          }
+          // Fetch server matches to catch any created while backgrounded or
+          // during network failures (wave sent → network drop → match created)
+          fetchMatchesFromServer().catch((e) =>
+            logger.error("Match reconciliation on foreground failed (non-fatal)", e),
+          );
 
           // Refresh location so proximity alerts stay fresh while backgrounded
           // Server rate-limits to 30s, so this is safe to call on every foreground.

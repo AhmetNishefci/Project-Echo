@@ -3,6 +3,7 @@ import { useWaveStore } from "@/stores/waveStore";
 import type { WaveResult, Match } from "@/types";
 import { logger } from "@/utils/logger";
 import { getFreshSession } from "./session";
+import NetInfo from "@react-native-community/netinfo";
 
 /** Result returned by sendWave with optional match data */
 export interface SendWaveResult {
@@ -11,10 +12,70 @@ export interface SendWaveResult {
   targetUserId?: string;
 }
 
+// ─── Offline Wave Queue ────────────────────────────────────────
+// When a wave fails due to no network, queue the token and retry
+// when connectivity is restored. Queued waves expire after 15 min
+// (matching server-side wave lifetime).
+
+const WAVE_QUEUE_EXPIRY_MS = 15 * 60_000;
+
+interface QueuedWave {
+  token: string;
+  queuedAt: number;
+}
+
+let offlineQueue: QueuedWave[] = [];
+let networkUnsubscribe: (() => void) | null = null;
+
+function startNetworkListener(): void {
+  if (networkUnsubscribe) return;
+  networkUnsubscribe = NetInfo.addEventListener((state) => {
+    if (state.isConnected && offlineQueue.length > 0) {
+      flushOfflineQueue();
+    }
+  });
+}
+
+function stopNetworkListenerIfEmpty(): void {
+  if (offlineQueue.length === 0 && networkUnsubscribe) {
+    networkUnsubscribe();
+    networkUnsubscribe = null;
+  }
+}
+
+/**
+ * Clear the offline wave queue and tear down the network listener.
+ * Called on sign-out to prevent stale waves from a previous session
+ * leaking into a new user's session.
+ */
+export function clearOfflineQueue(): void {
+  offlineQueue = [];
+  stopNetworkListenerIfEmpty();
+}
+
+async function flushOfflineQueue(): Promise<void> {
+  const now = Date.now();
+  // Filter out expired queued waves
+  const valid = offlineQueue.filter((w) => now - w.queuedAt < WAVE_QUEUE_EXPIRY_MS);
+  offlineQueue = [];
+
+  for (const queued of valid) {
+    logger.wave("Retrying queued offline wave", { token: queued.token.substring(0, 8) });
+    // Fire and forget — result is logged but not surfaced to UI
+    // (the user already saw the pending state when they tapped)
+    sendWave(queued.token).catch((e) =>
+      logger.error("Offline wave retry failed", e),
+    );
+  }
+
+  stopNetworkListenerIfEmpty();
+}
+
 /**
  * Send a wave at a nearby peer identified by their ephemeral token.
  * Returns the wave result status and optional match data.
  * The caller is responsible for updating the store based on the result.
+ * If offline, queues the wave for automatic retry when network returns.
  */
 export async function sendWave(
   targetEphemeralToken: string,
@@ -37,6 +98,17 @@ export async function sendWave(
     });
 
     if (error) {
+      // Check if this is a network error — queue for retry if offline
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        logger.wave("Wave failed while offline, queuing for retry", {
+          token: targetEphemeralToken.substring(0, 8),
+        });
+        offlineQueue.push({ token: targetEphemeralToken, queuedAt: Date.now() });
+        startNetworkListener();
+        return { status: "pending" };
+      }
+
       logger.error("Wave failed", error);
       return { status: "error" };
     }

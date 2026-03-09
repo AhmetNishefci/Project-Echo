@@ -9,6 +9,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useBleStore } from "@/stores/bleStore";
 import { unsubscribeFromMatches } from "@/services/wave/realtime";
+import { clearOfflineQueue } from "@/services/wave/waves";
 import { logger } from "@/utils/logger";
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
@@ -87,6 +88,9 @@ export async function signOut(): Promise<void> {
 
     // Unsubscribe from realtime before signing out (H12 fix)
     unsubscribeFromMatches();
+
+    // Clear offline wave queue to prevent stale waves leaking to new session
+    clearOfflineQueue();
 
     await supabase.auth.signOut();
 

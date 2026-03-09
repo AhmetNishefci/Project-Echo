@@ -11,6 +11,8 @@ import Animated, {
 import { notifySuccess } from "@/utils/haptics";
 import { playMatchChime } from "@/utils/sound";
 import { useWaveStore } from "@/stores/waveStore";
+import { supabase } from "@/services/supabase";
+import { logger } from "@/utils/logger";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const CONFETTI_COUNT = 30;
@@ -57,18 +59,68 @@ export default function MatchScreen() {
 
   const handle = displayMatch?.instagramHandle;
 
-  // If the handle hasn't arrived yet (RPC in-flight), show a brief loading state
-  // rather than flashing "No Instagram linked". Resolves when handle arrives
-  // or after 3s (meaning they genuinely don't have one).
+  // If the handle hasn't arrived yet (Realtime RPC in-flight), retry fetching it
+  // directly via RPC with timeout. Resolves when handle arrives from store update
+  // or after retries exhausted (~8s total).
   const [handleLoading, setHandleLoading] = useState(!handle);
   useEffect(() => {
     if (handle) {
       setHandleLoading(false);
       return;
     }
-    const timer = setTimeout(() => setHandleLoading(false), 3_000);
-    return () => clearTimeout(timer);
-  }, [handle]);
+    if (!displayMatch) return;
+
+    let cancelled = false;
+    const retryFetchHandle = async () => {
+      const MAX_RETRIES = 2;
+      const RETRY_DELAY_MS = 2_500;
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        if (cancelled) return;
+
+        // Check if store was updated by Realtime while we waited
+        const storeHandle = useWaveStore.getState().matches
+          .find((m) => m.matchId === displayMatch.matchId)?.instagramHandle;
+        if (storeHandle) {
+          useWaveStore.getState().updateMatchHandle(displayMatch.matchId, storeHandle);
+          if (!cancelled) setHandleLoading(false);
+          return;
+        }
+
+        // Direct RPC fetch
+        try {
+          const { data } = await supabase.rpc("get_matched_instagram_handles", {
+            p_match_ids: [displayMatch.matchId],
+          });
+
+          if (!cancelled && data?.[0]?.instagram_handle) {
+            useWaveStore.getState().updateMatchHandle(
+              displayMatch.matchId,
+              data[0].instagram_handle,
+            );
+            setHandleLoading(false);
+            return;
+          }
+        } catch {
+          // Timeout or network error — retry
+        }
+
+        if (attempt < MAX_RETRIES) {
+          await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+        }
+      }
+
+      if (!cancelled) {
+        logger.wave("Match handle retry exhausted — no handle found", {
+          matchId: displayMatch.matchId,
+        });
+        setHandleLoading(false);
+      }
+    };
+
+    retryFetchHandle();
+    return () => { cancelled = true; };
+  }, [handle, displayMatch]);
 
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: CONFETTI_COUNT }, (_, i) => ({

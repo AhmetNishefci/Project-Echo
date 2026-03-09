@@ -1,6 +1,7 @@
 import { supabase } from "../supabase";
 import { useWaveStore } from "@/stores/waveStore";
 import { logger } from "@/utils/logger";
+import NetInfo from "@react-native-community/netinfo";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 let channel: RealtimeChannel | null = null;
@@ -117,9 +118,17 @@ function scheduleReconnect(userId: string): void {
   );
   reconnectAttempts++;
 
-  reconnectTimer = setTimeout(() => {
+  reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
     if (currentUserId !== userId) return; // User changed, skip
+
+    // Skip reconnect attempt if device is offline — wait for next scheduled retry
+    const netState = await NetInfo.fetch();
+    if (!netState.isConnected) {
+      logger.wave("Skipping realtime reconnect — device is offline");
+      scheduleReconnect(userId);
+      return;
+    }
 
     logger.wave(`Attempting realtime reconnect (attempt ${reconnectAttempts})`);
     cleanupChannel();

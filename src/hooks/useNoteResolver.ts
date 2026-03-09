@@ -3,8 +3,8 @@ import { supabase } from "@/services/supabase";
 import { useBleStore } from "@/stores/bleStore";
 import { logger } from "@/utils/logger";
 
-const POLL_INTERVAL_MS = 10_000; // Poll every 10s (was 5s) to reduce server load
-const FULL_REFRESH_TICKS = 6; // Re-resolve ALL tokens every 60s to catch note changes
+const POLL_INTERVAL_MS = 30_000; // Poll every 30s (was 10s) to reduce server load on Free tier
+const FULL_REFRESH_TICKS = 4; // Re-resolve ALL tokens every 120s to catch note changes
 
 /**
  * Polls the server to resolve peer notes for tokens discovered via BLE.

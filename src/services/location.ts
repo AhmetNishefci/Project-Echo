@@ -2,6 +2,9 @@ import * as Location from "expo-location";
 import { supabase } from "./supabase";
 import { logger } from "@/utils/logger";
 
+/** Timestamp (ms) when the rate limit window expires. Prevents wasteful calls. */
+let rateLimitedUntil = 0;
+
 export type LocationPermissionResult = "granted" | "denied" | "blocked";
 
 /**
@@ -89,6 +92,12 @@ export async function updateLocationOnServer(
   longitude: number,
 ): Promise<{ nearbyCount: number; notifiedCount: number } | null> {
   try {
+    // Skip if still within the server's rate limit window
+    if (Date.now() < rateLimitedUntil) {
+      logger.wave("Skipping location update — rate limited");
+      return null;
+    }
+
     // Let supabase.functions.invoke handle auth automatically —
     // it sends the current session JWT from the client's internal state.
     const { data, error } = await supabase.functions.invoke(
@@ -104,6 +113,15 @@ export async function updateLocationOnServer(
           detail = await error.context.json();
         }
       } catch { /* ignore parse errors */ }
+
+      // Rate limiting is expected, not an error — respect the server's backoff
+      const retryAfter = (detail as any)?.retry_after_ms;
+      if ((detail as any)?.error === "Rate limited" && typeof retryAfter === "number") {
+        rateLimitedUntil = Date.now() + retryAfter;
+        logger.wave("Location update rate limited", { retryAfterMs: retryAfter });
+        return null;
+      }
+
       logger.error("updateLocationOnServer error", { message: error.message, detail });
       return null;
     }

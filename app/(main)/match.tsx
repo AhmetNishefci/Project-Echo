@@ -9,12 +9,15 @@ import Animated, {
   withDelay,
   Easing,
 } from "react-native-reanimated";
-import { notifySuccess } from "@/utils/haptics";
+import { notifySuccess, impactLight } from "@/utils/haptics";
 import { playMatchChime } from "@/utils/sound";
 import { useWaveStore } from "@/stores/waveStore";
 import { supabase } from "@/services/supabase";
 import { logger } from "@/utils/logger";
 import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
+import { getIcebreakerForMatch } from "@/constants/icebreakers";
+import { COLORS } from "@/constants/colors";
+import * as Clipboard from "expo-clipboard";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const CONFETTI_COUNT = 30;
@@ -225,6 +228,11 @@ export default function MatchScreen() {
         <Text className="text-wave-muted text-sm mb-6">No socials linked</Text>
       )}
 
+      {/* Ice-breaker — tap to copy conversation starter */}
+      {hasAnyHandle && displayMatch && (
+        <IcebreakerPrompt matchId={displayMatch.matchId} />
+      )}
+
       {/* Action buttons — when both exist, first is primary (filled), second is outline */}
       {hasAnyHandle && (
         <View className="w-full mb-4" style={{ gap: 10 }}>
@@ -263,6 +271,48 @@ export default function MatchScreen() {
         <Text className="text-white text-lg font-semibold">Back to Radar</Text>
       </TouchableOpacity>
     </View>
+  );
+}
+
+/* ─── Ice-breaker Prompt ───────────────────────────────────── */
+
+function IcebreakerPrompt({ matchId }: { matchId: string }) {
+  const [copied, setCopied] = useState(false);
+  const prompt = useMemo(() => getIcebreakerForMatch(matchId), [matchId]);
+
+  const handleCopy = async () => {
+    impactLight();
+    await Clipboard.setStringAsync(prompt);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handleCopy}
+      className="w-full bg-wave-surface/60 border border-wave-muted/20 rounded-2xl px-5 py-4 mb-6"
+      activeOpacity={0.7}
+      accessibilityLabel={`Copy ice-breaker: ${prompt}`}
+      accessibilityRole="button"
+    >
+      <Text className="text-wave-muted text-xs font-semibold uppercase tracking-wider mb-2">
+        Start your DM with
+      </Text>
+      <Text className="text-white text-base leading-6 mb-3">
+        "{prompt}"
+      </Text>
+      <View className="flex-row items-center">
+        <Ionicons
+          name={copied ? "checkmark-circle" : "copy-outline"}
+          size={14}
+          color={copied ? "#00d4aa" : COLORS.muted}
+          style={{ marginRight: 4 }}
+        />
+        <Text className={`text-xs font-semibold ${copied ? "text-wave-accent" : "text-wave-muted"}`}>
+          {copied ? "Copied!" : "Tap to copy"}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 

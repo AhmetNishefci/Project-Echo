@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
+  TextInput,
   SectionList,
   TouchableOpacity,
   Alert,
@@ -31,6 +32,9 @@ import { seedFakePeers, clearFakePeers, seedFakeMatches, triggerFakeMatch, clear
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 import { showPermissionBlockedAlert } from "@/services/ble/permissions";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { saveNote } from "@/services/profile";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS } from "@/constants/colors";
 
 const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
   HERE: { label: "Right Here", color: "text-green-400" },
@@ -102,8 +106,36 @@ export default function RadarScreen() {
   const [selectedPeer, setSelectedPeer] = useState<NearbyPeer | null>(null);
   const [showAllPeers, setShowAllPeers] = useState(false);
 
+  // Inline note editor
+  const currentNote = useAuthStore((s) => s.note);
+  const [editingNote, setEditingNote] = useState(false);
+  const [noteInput, setNoteInput] = useState(currentNote ?? "");
+  const [savingNote, setSavingNote] = useState(false);
+  const savingNoteRef = useRef(false);
+  const noteInputRef = useRef<TextInput>(null);
+
   // Resolve peer notes from server
   useNoteResolver(isDiscoveryActive);
+
+  const handleSaveNote = useCallback(async () => {
+    if (savingNoteRef.current) return;
+    savingNoteRef.current = true;
+
+    const trimmed = noteInput.trim();
+    setSavingNote(true);
+    impactLight();
+
+    const success = await saveNote(trimmed || null);
+    setSavingNote(false);
+    savingNoteRef.current = false;
+
+    if (success) {
+      useAuthStore.getState().setNote(trimmed || null);
+      setEditingNote(false);
+    } else {
+      setToast({ message: "Couldn't update your note", variant: "error" });
+    }
+  }, [noteInput]);
 
   const handleRefresh = useCallback(async () => {
     if (!isDiscoveryActive) return;
@@ -461,6 +493,61 @@ export default function RadarScreen() {
             </Text>
           </View>
         </Animated.View>
+      )}
+
+      {/* Quick note editor — context for nearby people */}
+      {editingNote ? (
+        <View className="bg-wave-surface rounded-2xl px-4 py-3 mb-3">
+          <View className="flex-row items-center">
+            <TextInput
+              ref={noteInputRef}
+              value={noteInput}
+              onChangeText={setNoteInput}
+              placeholder='e.g. "Sarah, Rooftop Bar"'
+              placeholderTextColor={COLORS.placeholder}
+              autoCapitalize="sentences"
+              autoCorrect={false}
+              maxLength={40}
+              autoFocus
+              className="flex-1 text-white text-sm"
+              style={{ lineHeight: 18, paddingVertical: 0 }}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveNote}
+            />
+            <Text className="text-wave-muted text-xs ml-2">{noteInput.length}/40</Text>
+          </View>
+          <View className="flex-row justify-end mt-2" style={{ gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => { setEditingNote(false); setNoteInput(currentNote ?? ""); }}
+              className="px-3 py-1.5"
+            >
+              <Text className="text-wave-muted text-xs font-semibold">Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleSaveNote}
+              disabled={savingNote}
+              className="bg-wave-primary rounded-lg px-4 py-1.5"
+            >
+              {savingNote ? (
+                <ActivityIndicator color={COLORS.white} size="small" />
+              ) : (
+                <Text className="text-white text-xs font-semibold">Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity
+          onPress={() => { setNoteInput(currentNote ?? ""); setEditingNote(true); }}
+          className="bg-wave-surface/50 rounded-2xl px-4 py-3 mb-3 flex-row items-center"
+          activeOpacity={0.7}
+        >
+          <Ionicons name="create-outline" size={16} color={COLORS.muted} style={{ marginRight: 8 }} />
+          <Text className="text-wave-muted text-sm flex-1" numberOfLines={1}>
+            {currentNote || "Add a note — help people find you"}
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color={COLORS.muted} />
+        </TouchableOpacity>
       )}
 
       {/* Start/Stop button */}

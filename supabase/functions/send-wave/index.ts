@@ -375,6 +375,10 @@ async function sendExpoPush(
       body: notification.body,
       sound: "default" as const,
       data: notification.data ?? {},
+      // Set app icon badge for match notifications so the badge
+      // appears even when the app is fully suspended. The client
+      // corrects this to the exact unseen count when foregrounded.
+      ...(notification.data?.type === "match" ? { badge: 1 } : {}),
     }));
 
     const response = await fetch("https://exp.host/--/api/v2/push/send", {

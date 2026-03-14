@@ -15,6 +15,7 @@ import { useWaveStore } from "@/stores/waveStore";
 import { supabase } from "@/services/supabase";
 import { logger } from "@/utils/logger";
 import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
+import { MatchShareCard } from "@/components/MatchShareCard";
 import { getIcebreakerForMatch } from "@/constants/icebreakers";
 import { COLORS } from "@/constants/colors";
 import * as Clipboard from "expo-clipboard";
@@ -270,6 +271,9 @@ export default function MatchScreen() {
       >
         <Text className="text-white text-lg font-semibold">Back to Radar</Text>
       </TouchableOpacity>
+
+      {/* Share to story */}
+      {displayMatch && <MatchShareCard matchId={displayMatch.matchId} />}
     </View>
   );
 }
@@ -279,12 +283,25 @@ export default function MatchScreen() {
 function IcebreakerPrompt({ matchId }: { matchId: string }) {
   const [copied, setCopied] = useState(false);
   const prompt = useMemo(() => getIcebreakerForMatch(matchId), [matchId]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const handleCopy = async () => {
     impactLight();
-    await Clipboard.setStringAsync(prompt);
+    try {
+      await Clipboard.setStringAsync(prompt);
+    } catch {
+      // Clipboard write failed — silently ignore
+      return;
+    }
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   return (

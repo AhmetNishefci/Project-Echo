@@ -3,6 +3,7 @@ import { Tabs, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { waveBleManager } from "@/services/ble/bleManager";
 import { useWaveStore } from "@/stores/waveStore";
+import * as Notifications from "expo-notifications";
 import { useBleLifecycle } from "@/hooks/useBleLifecycle";
 import { useEphemeralRotation } from "@/hooks/useEphemeralRotation";
 import { useMatchListener } from "@/hooks/useMatchListener";
@@ -16,6 +17,15 @@ export default function MainLayout() {
   const unseenCount = useWaveStore(
     (s) => s.matches.filter((m) => !m.seen).length,
   );
+
+  // Sync app icon badge with unseen match count
+  useEffect(() => {
+    try {
+      Notifications.setBadgeCountAsync(unseenCount).catch(() => {});
+    } catch {
+      // expo-notifications may not be available
+    }
+  }, [unseenCount]);
 
   // Initialize BLE manager on mount
   useEffect(() => {

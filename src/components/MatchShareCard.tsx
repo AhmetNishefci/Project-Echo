@@ -1,8 +1,7 @@
 import { useRef, useCallback, useState } from "react";
-import { View, Text, Image, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, Share, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import ViewShot from "react-native-view-shot";
-import * as Sharing from "expo-sharing";
 import { impactMedium } from "@/utils/haptics";
 import { COLORS } from "@/constants/colors";
 import { getIcebreakerForMatch } from "@/constants/icebreakers";
@@ -40,9 +39,8 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
         return;
       }
 
-      await Sharing.shareAsync(uri, {
-        mimeType: "image/png",
-        dialogTitle: "Share your match",
+      await Share.share({
+        url: Platform.OS === "ios" ? uri : `file://${uri}`,
       });
     } catch (err) {
       logger.error("MatchShareCard: share failed", err);

@@ -5,6 +5,7 @@ import {
   startAdvertising,
   stopAdvertising,
   updateAdvertisedToken,
+  isPeripheralSupported,
 } from "./advertiser";
 import { requestBlePermissions } from "./permissions";
 import { useBleStore } from "@/stores/bleStore";
@@ -106,10 +107,13 @@ class WaveBleManager {
     this.isRunning = true;
     logger.ble("Starting Wave BLE engine");
 
-    // Start advertising with gender-prefixed payload
+    // Start advertising with gender-prefixed payload (skip on platforms
+    // where peripheral mode is not supported to avoid misleading UI state)
     try {
-      await startAdvertising(this.buildPayload(token));
-      useBleStore.getState().setAdvertising(true);
+      if (await isPeripheralSupported()) {
+        await startAdvertising(this.buildPayload(token));
+        useBleStore.getState().setAdvertising(true);
+      }
     } catch (error) {
       logger.error("Failed to start advertising", error);
       useBleStore.getState().setError("Failed to start advertising");
@@ -247,10 +251,16 @@ class WaveBleManager {
   private async resume(): Promise<void> {
     logger.ble("Resuming BLE engine (adapter on)");
 
+    // Stop existing timers first to prevent stacking if resume() is called
+    // without an intervening pause() (e.g. Resetting → PoweredOn transition
+    // where the Resetting state doesn't trigger pause). B1 fix.
+    this.stopScanCycle();
+    this.stopPruning();
+
     // Stop old advertisement and wait for completion before restarting (H6 fix)
     // This prevents overlapping advertising sessions from the pause/resume race
     const token = useWaveStore.getState().currentToken;
-    if (token) {
+    if (token && await isPeripheralSupported()) {
       try {
         await stopAdvertising();
       } catch {

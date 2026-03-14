@@ -36,9 +36,18 @@ export async function fetchMatchesFromServer(): Promise<boolean> {
       return false;
     }
 
-    if (!data || data.length === 0) return false;
+    if (!data || data.length === 0) {
+      // Server returned zero matches — remove all local matches that are
+      // ghosts (removed by the other party while we were offline).
+      const store = useWaveStore.getState();
+      if (store.matches.length > 0) {
+        store.clearMatches();
+        logger.wave("Cleared all local matches (server has none)");
+      }
+      return false;
+    }
 
-    await mergeServerMatches(data, user.id);
+    await mergeServerMatches(data, user.id, true);
 
     return data.length === PAGE_SIZE;
   } catch (err) {
@@ -74,7 +83,7 @@ export async function loadMoreMatches(beforeCursor: string): Promise<boolean> {
 
     if (!data || data.length === 0) return false;
 
-    await mergeServerMatches(data, user.id);
+    await mergeServerMatches(data, user.id, false);
 
     return data.length === PAGE_SIZE;
   } catch (err) {
@@ -85,10 +94,16 @@ export async function loadMoreMatches(beforeCursor: string): Promise<boolean> {
 
 /**
  * Shared logic: fetch handles and merge a page of server matches into the store.
+ *
+ * When `isFirstPage` is true, also reconciles ghost matches — local matches
+ * that no longer exist on the server (e.g., removed by the other party while
+ * this user was offline). Only matches within the time range of the server
+ * response are reconciled to avoid removing matches on later pages.
  */
 async function mergeServerMatches(
   data: { id: string; user_a: string; user_b: string; created_at: string }[],
   userId: string,
+  isFirstPage: boolean,
 ): Promise<void> {
   // Fetch Instagram handles via authenticated RPC
   const matchIds = data.map((row) => row.id);
@@ -143,6 +158,45 @@ async function mergeServerMatches(
       if (existing && !existing.instagramHandle) {
         store.updateMatchHandle(row.id, handle);
       }
+    }
+  }
+
+  // Reconcile ghost matches: remove local matches that the server no longer has.
+  // Only run on the first page to avoid false removals from later pages.
+  // Use `existingIds` (snapshot taken BEFORE addMatch calls above) to avoid
+  // removing matches that arrived via Realtime during this async function.
+  if (isFirstPage) {
+    const serverMatchIds = new Set(data.map((row) => row.id));
+    const isFullPage = data.length === PAGE_SIZE;
+
+    // If server returned a full page, we only know about matches down to the
+    // oldest returned timestamp. Local matches older than that could be on
+    // page 2+ and should NOT be removed. If the page is partial (< PAGE_SIZE),
+    // we have ALL the user's matches — anything local not in the set is a ghost.
+    const oldestServerTimestamp = isFullPage
+      ? data[data.length - 1].created_at
+      : null;
+
+    const ghostIds: string[] = [];
+
+    // Only check matches that existed BEFORE this merge started (existingIds).
+    // Matches added during merge (by Realtime or addMatch above) are NOT
+    // candidates for ghost removal — they're fresh data, not stale ghosts.
+    for (const localId of existingIds) {
+      if (serverMatchIds.has(localId)) continue; // exists on server
+      const local = store.matches.find((m) => m.matchId === localId);
+      if (!local) continue; // already removed
+      if (oldestServerTimestamp && local.createdAt < oldestServerTimestamp) continue; // older than page range
+      ghostIds.push(localId);
+    }
+
+    if (ghostIds.length > 0) {
+      for (const id of ghostIds) {
+        useWaveStore.getState().removeMatch(id);
+      }
+      logger.wave("Removed ghost matches not found on server", {
+        count: ghostIds.length,
+      });
     }
   }
 }

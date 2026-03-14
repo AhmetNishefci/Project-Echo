@@ -36,19 +36,26 @@ export default function OnboardingScreen() {
     impactMedium();
     setSaving(true);
 
-    const saved = await saveInstagramHandle(trimmed);
+    const result = await saveInstagramHandle(trimmed);
     setSaving(false);
     savingRef.current = false;
 
-    if (!saved) {
-      Alert.alert(
-        "Invalid Username",
-        "Please enter a valid Instagram username (letters, numbers, dots, and underscores).",
-      );
+    if (!result.handle) {
+      if (result.error === "taken") {
+        Alert.alert(
+          "Username Taken",
+          "This Instagram username is already linked to another Wave account. Please try a different one.",
+        );
+      } else {
+        Alert.alert(
+          "Invalid Username",
+          "Please enter a valid Instagram username (letters, numbers, dots, and underscores).",
+        );
+      }
       return;
     }
 
-    useAuthStore.getState().setInstagramHandle(saved);
+    useAuthStore.getState().setInstagramHandle(result.handle);
     router.replace("/note");
   };
 

@@ -17,8 +17,9 @@ export const logger = {
     }
   },
   error: (message: string, error?: unknown) => {
-    if (isDev) {
-      console.error(`[ERROR] ${message}`, error !== undefined ? error : "");
-    }
+    // Always log errors, even in production — these surface in Xcode
+    // device console for TestFlight builds and will feed into Sentry
+    // once integrated (see README roadmap).
+    console.error(`[ERROR] ${message}`, error !== undefined ? error : "");
   },
 };

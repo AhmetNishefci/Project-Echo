@@ -49,6 +49,11 @@ export function useNotifications() {
         logger.wave("Notification tapped", data);
 
         if (data?.type === "match" && data?.match_id) {
+          // Add the match to the store. This sets latestUnseenMatch,
+          // which MainLayout's useEffect detects and navigates to the
+          // match screen. We do NOT call router.push here — that would
+          // cause a double navigation (both this handler and MainLayout
+          // would push /(main)/match, stacking two screens).
           const store = useWaveStore.getState();
           store.addMatch({
             matchId: data.match_id as string,
@@ -57,8 +62,6 @@ export function useNotifications() {
             createdAt: (data.created_at as string) ?? new Date().toISOString(),
             seen: false,
           });
-
-          router.push("/(main)/match");
         } else if (
           data?.type === "wave" ||
           data?.type === "proximity_alert" ||

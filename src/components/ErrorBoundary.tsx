@@ -24,10 +24,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Log to crash reporting service in production
-    if (__DEV__) {
-      console.error("[ErrorBoundary]", error, info.componentStack);
-    }
+    // Always log — surfaces in Xcode console for TestFlight builds
+    // and will feed into Sentry once integrated (see README roadmap).
+    console.error("[ErrorBoundary]", error, info.componentStack);
   }
 
   handleReset = () => {

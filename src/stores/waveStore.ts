@@ -144,7 +144,22 @@ export const useWaveStore = create<WaveState>()(
           // Prevent duplicate matches (C9 fix)
           const existing = state.matches.find((m) => m.matchId === match.matchId);
           if (existing) {
-            // Don't re-trigger match screen for already-seen or already-displayed matches
+            // Merge instagramHandle if the new call has it and existing doesn't (L1 fix).
+            // This handles the race where Realtime delivers the match first (no handle),
+            // then the HTTP response or push notification arrives with the handle.
+            if (match.instagramHandle && !existing.instagramHandle) {
+              return {
+                matches: state.matches.map((m) =>
+                  m.matchId === match.matchId
+                    ? { ...m, instagramHandle: match.instagramHandle }
+                    : m,
+                ),
+                latestUnseenMatch:
+                  state.latestUnseenMatch?.matchId === match.matchId
+                    ? { ...state.latestUnseenMatch, instagramHandle: match.instagramHandle }
+                    : state.latestUnseenMatch,
+              };
+            }
             return {};
           }
 

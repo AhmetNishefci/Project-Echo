@@ -158,6 +158,13 @@ export default function IndexScreen() {
 
     const profile = await fetchProfile();
 
+    // Bail if auth state changed during fetch (L4 fix) — the main
+    // effect will handle navigation when isAuthenticated updates.
+    if (!useAuthStore.getState().isAuthenticated) {
+      setIsNavigating(false);
+      return;
+    }
+
     if (!profile) {
       setFetchFailed(true);
       setIsNavigating(false);

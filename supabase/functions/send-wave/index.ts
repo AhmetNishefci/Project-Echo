@@ -282,6 +282,10 @@ serve(async (req: Request) => {
 
       // Send push notification to the OTHER user
       // (the waver already gets the match from the HTTP response)
+      // NOTE: instagram_handle is intentionally excluded from push payloads
+      // for the same reason it's excluded from broadcast payloads (line 271) —
+      // push data is stored on-device and accessible to notification extensions.
+      // Clients fetch handles via authenticated RPC after opening the match.
       await sendExpoPush(adminClient, result.matched_user_id, {
         title: "It's a Match! 🎉",
         body: "Someone waved back! Open Wave to see who.",
@@ -289,7 +293,6 @@ serve(async (req: Request) => {
           type: "match",
           match_id: result.match_id,
           matched_user_id: user.id,
-          instagram_handle: waverHandle,
           created_at: matchPayload.created_at,
         },
       });
@@ -302,7 +305,6 @@ serve(async (req: Request) => {
           type: "match",
           match_id: result.match_id,
           matched_user_id: result.matched_user_id,
-          instagram_handle: matchedInstagramHandle,
           created_at: matchPayload.created_at,
         },
       });

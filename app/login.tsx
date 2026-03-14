@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,14 +18,21 @@ export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
+  const signingInRef = useRef(false);
 
   const handleSignIn = async () => {
+    // Double-tap guard — GoogleSignin handles IN_PROGRESS but shows
+    // a confusing error alert without this (LP1 fix)
+    if (signingInRef.current) return;
+    signingInRef.current = true;
+
     impactMedium();
     setLoading(true);
 
     const { success, error } = await signInWithGoogle();
 
     setLoading(false);
+    signingInRef.current = false;
 
     if (success) {
       router.replace("/");

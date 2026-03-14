@@ -16,6 +16,8 @@ import { logger } from "@/utils/logger";
 const MAX_CONCURRENT_GATT = 4;
 const UPSERT_BATCH_MS = 300;
 const MAX_GATT_QUEUE = 20; // Cap queued GATT reads to avoid unbounded growth
+const MAX_PENDING_UPSERTS = 100; // Force flush when batch gets large (F4 fix)
+const MAX_PEERS = 200; // Must match bleStore cap — enforced here for batch path (B2 fix)
 
 /**
  * Scanner session state — isolated per BLE session to prevent leaks
@@ -158,26 +160,50 @@ export function startScanning(bleManager: BleManager): void {
   );
 }
 
+/**
+ * Flush any pending peer upserts immediately. Shared by stopScanning
+ * (H10 fix) and the batch cap guard (F4 fix) to avoid code duplication.
+ */
+function flushPendingUpserts(): void {
+  if (session.upsertTimer) {
+    clearTimeout(session.upsertTimer);
+    session.upsertTimer = null;
+  }
+  if (session.pendingUpserts.length === 0) return;
+
+  const batch = session.pendingUpserts;
+  session.pendingUpserts = [];
+  useBleStore.setState((state) => {
+    const next = new Map(state.nearbyPeers);
+    for (const p of batch) {
+      next.set(p.ephemeralToken, p);
+    }
+
+    // Enforce peer cap: evict weakest-signal peers if batch pushed us over.
+    // Mirrors the eviction logic in bleStore.upsertPeer (B2 fix).
+    while (next.size > MAX_PEERS) {
+      let weakestToken: string | null = null;
+      let weakestRssi = Infinity;
+      for (const [token, p] of next) {
+        if (p.rssi < weakestRssi) {
+          weakestRssi = p.rssi;
+          weakestToken = token;
+        }
+      }
+      if (weakestToken) next.delete(weakestToken);
+      else break;
+    }
+
+    return { nearbyPeers: next };
+  });
+}
+
 export function stopScanning(bleManager: BleManager): void {
   bleManager.stopDeviceScan();
 
   // Flush pending upserts before clearing, so recently-discovered peers
   // are not silently dropped (H10 fix)
-  if (session.upsertTimer) {
-    clearTimeout(session.upsertTimer);
-    session.upsertTimer = null;
-  }
-  if (session.pendingUpserts.length > 0) {
-    const batch = session.pendingUpserts;
-    session.pendingUpserts = [];
-    useBleStore.setState((state) => {
-      const next = new Map(state.nearbyPeers);
-      for (const p of batch) {
-        next.set(p.ephemeralToken, p);
-      }
-      return { nearbyPeers: next };
-    });
-  }
+  flushPendingUpserts();
 
   useBleStore.setState({ isScanning: false });
   logger.ble("Stopped BLE scan");
@@ -238,22 +264,13 @@ function upsertPeerWithToken(device: Device, token: string, gender: Gender | nul
     note: existing?.note ?? null,
   };
 
-  // Batch upserts to avoid creating a new Map on every BLE advertisement
+  // Batch upserts to avoid creating a new Map on every BLE advertisement.
+  // Force-flush when batch hits cap to prevent unbounded growth (F4 fix).
   session.pendingUpserts.push(peer);
-  if (!session.upsertTimer) {
-    session.upsertTimer = setTimeout(() => {
-      const batch = session.pendingUpserts;
-      session.pendingUpserts = [];
-      session.upsertTimer = null;
-
-      useBleStore.setState((state) => {
-        const next = new Map(state.nearbyPeers);
-        for (const p of batch) {
-          next.set(p.ephemeralToken, p);
-        }
-        return { nearbyPeers: next };
-      });
-    }, UPSERT_BATCH_MS);
+  if (session.pendingUpserts.length >= MAX_PENDING_UPSERTS) {
+    flushPendingUpserts();
+  } else if (!session.upsertTimer) {
+    session.upsertTimer = setTimeout(flushPendingUpserts, UPSERT_BATCH_MS);
   }
 
   if (!existing) {

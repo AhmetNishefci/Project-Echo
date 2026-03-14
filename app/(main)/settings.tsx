@@ -51,10 +51,10 @@ export default function SettingsScreen() {
     };
   }, []);
 
-  const showToast = (msg: string, variant: ToastVariant = "success") => {
+  const showToast = useCallback((msg: string, variant: ToastVariant = "success") => {
     setToastVariant(variant);
     setToastMessage(msg);
-  };
+  }, []);
 
   const handleSaveHandle = async () => {
     const trimmed = handleInput.trim().replace(/^@/, "");
@@ -63,13 +63,15 @@ export default function SettingsScreen() {
     impactLight();
     setSavingHandle(true);
 
-    const saved = await saveInstagramHandle(trimmed);
+    const result = await saveInstagramHandle(trimmed);
     setSavingHandle(false);
 
-    if (saved) {
-      setInstagramHandle(saved);
+    if (result.handle) {
+      setInstagramHandle(result.handle);
       setEditingHandle(false);
       showToast("Username updated");
+    } else if (result.error === "taken") {
+      showToast("This username is already taken.", "error");
     } else {
       showToast("Invalid username. Use letters, numbers, dots, and underscores.", "error");
     }
@@ -578,7 +580,6 @@ export default function SettingsScreen() {
                   text: "Sign Out",
                   onPress: async () => {
                     try {
-                      await waveBleManager.stop();
                       await signOut();
                       router.replace("/");
                     } catch {

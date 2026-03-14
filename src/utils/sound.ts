@@ -75,7 +75,9 @@ export async function playWaveSent(): Promise<void> {
     await sound.setPositionAsync(0);
     await sound.playAsync();
   } catch {
-    // silently ignore
+    // Sound became invalid (OS reclaimed resources while backgrounded).
+    // Clear the cached promise so the next play attempt re-creates it.
+    waveSentPromise = null;
   }
 }
 
@@ -86,7 +88,9 @@ export async function playMatchChime(): Promise<void> {
     await sound.setPositionAsync(0);
     await sound.playAsync();
   } catch {
-    // silently ignore
+    // Sound became invalid (OS reclaimed resources while backgrounded).
+    // Clear the cached promise so the next play attempt re-creates it.
+    matchPromise = null;
   }
 }
 

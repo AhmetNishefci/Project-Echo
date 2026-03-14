@@ -1,8 +1,7 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/services/supabase";
-import { useAuthStore } from "@/stores/authStore";
+import { signOut } from "@/services/auth";
 import { logger } from "@/utils/logger";
 
 export default function AgeBlockedScreen() {
@@ -10,8 +9,7 @@ export default function AgeBlockedScreen() {
 
   const handleSignOut = async () => {
     try {
-      useAuthStore.getState().reset();
-      await supabase.auth.signOut();
+      await signOut();
     } catch (err) {
       logger.error("Sign out from age-blocked failed", err);
     }

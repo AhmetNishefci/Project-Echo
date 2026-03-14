@@ -8,8 +8,10 @@ import { supabase } from "./supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useBleStore } from "@/stores/bleStore";
+import { waveBleManager } from "@/services/ble/bleManager";
 import { unsubscribeFromMatches } from "@/services/wave/realtime";
 import { clearOfflineQueue } from "@/services/wave/waves";
+import { resetTimezoneSyncCache } from "@/services/profile";
 import { logger } from "@/utils/logger";
 
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
@@ -75,11 +77,22 @@ export async function signInWithGoogle(): Promise<{
 
 /**
  * Sign out of the current session.
- * Clears Google session, Supabase session, realtime subscriptions,
- * and all local stores (H12 fix).
+ * Stops BLE, clears Google session, Supabase session, realtime
+ * subscriptions, and all local stores.
+ *
+ * Stores are reset BEFORE supabase.auth.signOut() because signOut
+ * triggers onAuthStateChange synchronously, which navigates to login.
+ * Stores must be clean before that navigation happens (L2 fix).
  */
 export async function signOut(): Promise<void> {
   try {
+    // Stop BLE engine (LP3 fix — idempotent if not running)
+    try {
+      await waveBleManager.stop();
+    } catch {
+      // Ignore — may not be initialized
+    }
+
     try {
       await GoogleSignin.signOut();
     } catch {
@@ -92,12 +105,16 @@ export async function signOut(): Promise<void> {
     // Clear offline wave queue to prevent stale waves leaking to new session
     clearOfflineQueue();
 
-    await supabase.auth.signOut();
+    // Reset module-level caches (LP2 fix)
+    resetTimezoneSyncCache();
 
-    // Reset ALL stores, not just authStore (H12 fix)
+    // Reset ALL stores BEFORE signOut so navigation triggered by
+    // onAuthStateChange sees clean state (L2 fix)
     useWaveStore.getState().reset();
     useBleStore.getState().reset();
     useAuthStore.getState().reset();
+
+    await supabase.auth.signOut();
 
     logger.auth("Signed out");
   } catch (err) {

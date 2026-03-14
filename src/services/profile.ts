@@ -6,6 +6,12 @@ import type { Gender, GenderPreference } from "@/types";
 let lastTimezoneSyncMs = 0;
 const TIMEZONE_SYNC_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
+/** Reset the timezone sync throttle. Called on sign-out so the next
+ *  user's timezone is synced immediately (LP2 fix). */
+export function resetTimezoneSyncCache(): void {
+  lastTimezoneSyncMs = 0;
+}
+
 export interface UserProfile {
   dateOfBirth: string | null;
   instagramHandle: string | null;
@@ -252,14 +258,20 @@ export async function updateAgePreference(
   }
 }
 
+export interface HandleSaveResult {
+  handle: string | null;
+  error?: "invalid" | "taken";
+}
+
 /**
  * Save/update the user's Instagram handle.
  * Strips leading @ if present, lowercases, and validates.
- * Returns the cleaned handle on success, null on failure.
+ * Returns { handle } on success, { handle: null, error } on failure.
+ * The `error` field distinguishes "invalid format" from "already taken".
  */
 export async function saveInstagramHandle(
   rawHandle: string,
-): Promise<string | null> {
+): Promise<HandleSaveResult> {
   try {
     // Clean the handle
     let handle = rawHandle.trim().toLowerCase();
@@ -272,7 +284,7 @@ export async function saveInstagramHandle(
     const igRegex = /^[a-z0-9](?:[a-z0-9._]{0,28}[a-z0-9])?$/;
     if (!igRegex.test(handle) || handle.includes("..")) {
       logger.error("saveInstagramHandle: invalid format", { handle });
-      return null;
+      return { handle: null, error: "invalid" };
     }
 
     const {
@@ -281,7 +293,7 @@ export async function saveInstagramHandle(
 
     if (!user) {
       logger.error("saveInstagramHandle: no user");
-      return null;
+      return { handle: null };
     }
 
     // Use the claim_instagram_handle RPC which atomically releases the
@@ -291,15 +303,21 @@ export async function saveInstagramHandle(
     });
 
     if (error) {
+      // PostgreSQL 23505 = unique constraint violation on instagram_handle index.
+      // This means another (non-anonymous) user already has this handle.
+      if (error.code === "23505") {
+        logger.error("saveInstagramHandle: handle already taken", { handle });
+        return { handle: null, error: "taken" };
+      }
       logger.error("saveInstagramHandle error", error);
-      return null;
+      return { handle: null };
     }
 
     logger.auth("Instagram handle saved", { handle });
-    return handle;
+    return { handle };
   } catch (err) {
     logger.error("saveInstagramHandle exception", err);
-    return null;
+    return { handle: null };
   }
 }
 

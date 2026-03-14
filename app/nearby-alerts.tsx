@@ -72,8 +72,17 @@ export default function NearbyAlertsScreen() {
     savingRef.current = true;
     setSaving(true);
 
-    // Save as disabled
-    await saveNearbyAlertsPreference(false);
+    // Save as disabled — must succeed so the server records
+    // nearby_alerts_onboarded: true, otherwise the user is re-routed
+    // here on every app launch (L3 fix).
+    const success = await saveNearbyAlertsPreference(false);
+    if (!success) {
+      setSaving(false);
+      savingRef.current = false;
+      Alert.alert("Error", "Could not save your preference. Please try again.");
+      return;
+    }
+
     useAuthStore.getState().setNearbyAlertsEnabled(false);
 
     setSaving(false);

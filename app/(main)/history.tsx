@@ -9,6 +9,7 @@ import { BottomSheet } from "@/components/BottomSheet";
 import { SocialActionRow } from "@/components/SocialActionRow";
 import { COLORS } from "@/constants/colors";
 import type { Match } from "@/types";
+import { getAvatarForToken } from "@/types";
 
 /** Group matches by date with meaningful time buckets */
 function groupByDate(matches: Match[]) {
@@ -205,15 +206,28 @@ function MatchRow({
   match: Match;
   onPress: (match: Match) => void;
 }) {
-  const time = new Date(match.createdAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const matchDate = new Date(match.createdAt);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86_400_000);
+  const thisWeekStart = new Date(today.getTime() - ((now.getDay() === 0 ? 6 : now.getDay() - 1) * 86_400_000));
+
+  const timeStr = matchDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const matchLabel = matchDate >= today
+    ? timeStr
+    : matchDate >= yesterday
+      ? timeStr
+      : matchDate >= thisWeekStart
+        ? `${matchDate.toLocaleDateString([], { weekday: "long" })}, ${timeStr}`
+        : matchDate.getFullYear() === now.getFullYear()
+          ? `${matchDate.toLocaleDateString([], { month: "short", day: "numeric" })}, ${timeStr}`
+          : `${matchDate.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}, ${timeStr}`;
 
   const igHandle = match.instagramHandle;
   const scHandle = match.snapchatHandle;
   const hasHandle = !!igHandle || !!scHandle;
   const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : null;
+  const avatar = useMemo(() => getAvatarForToken(match.matchedUserId), [match.matchedUserId]);
 
   return (
     <TouchableOpacity
@@ -221,9 +235,9 @@ function MatchRow({
       activeOpacity={0.7}
       className="bg-wave-surface rounded-2xl p-4 mb-3 flex-row items-center"
     >
-      {/* Avatar */}
-      <View className="w-12 h-12 rounded-full bg-wave-match/20 items-center justify-center mr-4">
-        <Text className="text-wave-match text-lg">🤝</Text>
+      {/* Avatar — unique per match, derived from matchedUserId */}
+      <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${avatar.bg} border-2 ${avatar.ring}`}>
+        <Text className="text-lg">{avatar.emoji}</Text>
       </View>
 
       {/* Info */}
@@ -234,7 +248,7 @@ function MatchRow({
               {displayName}
             </Text>
             <Text className="text-wave-muted text-xs mt-1">
-              Matched at {time}
+              Matched {matchLabel}
             </Text>
           </>
         ) : (
@@ -243,7 +257,7 @@ function MatchRow({
               Someone nearby
             </Text>
             <Text className="text-wave-muted text-xs mt-1">
-              Matched at {time} · No socials linked
+              Matched {matchLabel} · No socials linked
             </Text>
           </>
         )}
@@ -274,6 +288,7 @@ function MatchActionSheet({
   const igHandle = match.instagramHandle;
   const scHandle = match.snapchatHandle;
   const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : "Someone nearby";
+  const avatar = getAvatarForToken(match.matchedUserId);
 
   const handleRemove = () => {
     onClose();
@@ -307,8 +322,8 @@ function MatchActionSheet({
     <BottomSheet visible onClose={onClose}>
       {/* Match info */}
       <View className="items-center mb-5">
-        <View className="w-14 h-14 rounded-full bg-wave-match/20 items-center justify-center mb-3">
-          <Text className="text-2xl">🤝</Text>
+        <View className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${avatar.bg} border-2 ${avatar.ring}`}>
+          <Text className="text-2xl">{avatar.emoji}</Text>
         </View>
         <Text className="text-white text-lg font-semibold">{displayName}</Text>
       </View>

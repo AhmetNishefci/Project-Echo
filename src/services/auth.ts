@@ -14,6 +14,14 @@ import { clearOfflineQueue } from "@/services/wave/waves";
 import { resetTimezoneSyncCache } from "@/services/profile";
 import { logger } from "@/utils/logger";
 
+// Lazy-load expo-apple-authentication — may not be available on Android/Expo Go
+let AppleAuthentication: typeof import("expo-apple-authentication") | null = null;
+try {
+  AppleAuthentication = require("expo-apple-authentication");
+} catch {
+  logger.auth("expo-apple-authentication not available");
+}
+
 const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? "";
 const IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? "";
 
@@ -86,7 +94,9 @@ export async function signInWithApple(): Promise<{
   try {
     logger.auth("Starting Apple Sign In");
 
-    const AppleAuthentication = require("expo-apple-authentication");
+    if (!AppleAuthentication) {
+      return { success: false, error: "Apple Sign In is not available on this device" };
+    }
 
     const credential = await AppleAuthentication.signInAsync({
       requestedScopes: [
@@ -120,6 +130,79 @@ export async function signInWithApple(): Promise<{
       return { success: false, error: "cancelled" };
     }
     logger.error("Apple sign-in error", err);
+    return { success: false, error: "Something went wrong" };
+  }
+}
+
+/**
+ * Send an OTP code to a phone number via SMS.
+ * Requires Twilio to be configured in Supabase dashboard.
+ * Phone must be in E.164 format (e.g., "+15551234567").
+ */
+export async function sendPhoneOtp(phone: string): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    logger.auth("Sending phone OTP", { phone: phone.substring(0, 6) + "..." });
+
+    const { error } = await supabase.auth.signInWithOtp({ phone });
+
+    if (error) {
+      logger.error("Phone OTP send failed", error);
+
+      if (error.message?.includes("rate") || error.status === 429) {
+        return { success: false, error: "Too many attempts. Please wait a minute and try again." };
+      }
+
+      return { success: false, error: error.message };
+    }
+
+    logger.auth("Phone OTP sent");
+    return { success: true };
+  } catch (err) {
+    logger.error("Phone OTP exception", err);
+    return { success: false, error: "Something went wrong" };
+  }
+}
+
+/**
+ * Verify a phone OTP code and create a Supabase session.
+ * Phone must match the one used in sendPhoneOtp.
+ */
+export async function verifyPhoneOtp(
+  phone: string,
+  code: string,
+): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    logger.auth("Verifying phone OTP");
+
+    const { error } = await supabase.auth.verifyOtp({
+      phone,
+      token: code,
+      type: "sms",
+    });
+
+    if (error) {
+      logger.error("Phone OTP verification failed", error);
+
+      if (error.message?.includes("expired")) {
+        return { success: false, error: "Code expired. Please request a new one." };
+      }
+      if (error.message?.includes("invalid") || error.message?.includes("Invalid")) {
+        return { success: false, error: "Invalid code. Please check and try again." };
+      }
+
+      return { success: false, error: error.message };
+    }
+
+    logger.auth("Phone sign-in complete");
+    return { success: true };
+  } catch (err) {
+    logger.error("Phone OTP verify exception", err);
     return { success: false, error: "Something went wrong" };
   }
 }

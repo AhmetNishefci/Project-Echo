@@ -40,7 +40,7 @@ Privacy is core to the design: users are identified only by ephemeral tokens tha
 ┌─────────────────────────────────────────────────┐
 │                   Supabase                       │
 │                                                  │
-│  Auth (Google OAuth)     Realtime (broadcast)    │
+│  Auth (Apple/Google/Phone) Realtime (broadcast)   │
 │  PostgreSQL + PostGIS    Edge Functions (Deno)   │
 │  RLS policies            pg_cron + pg_net        │
 │  Push via Expo API                               │
@@ -58,7 +58,7 @@ Privacy is core to the design: users are identified only by ephemeral tokens tha
 | Animations | React Native Reanimated 4 |
 | BLE Central | `react-native-ble-plx` 3.5 |
 | BLE Peripheral | Custom Expo module (`expo-ble-peripheral`, Swift/CoreBluetooth) |
-| Auth | `@react-native-google-signin/google-signin` → Supabase Auth |
+| Auth | `expo-apple-authentication` + `@react-native-google-signin/google-signin` + Phone OTP → Supabase Auth |
 | Networking | `@react-native-community/netinfo` for offline detection |
 
 ### Backend Stack
@@ -66,7 +66,7 @@ Privacy is core to the design: users are identified only by ephemeral tokens tha
 | Layer | Technology |
 |-------|-----------|
 | Database | Supabase PostgreSQL with PostGIS |
-| Auth | Supabase Auth (Google ID token exchange) |
+| Auth | Supabase Auth (Apple + Google ID token exchange, Phone OTP via Twilio) |
 | API | 9 Supabase Edge Functions (Deno/TypeScript) |
 | Realtime | Supabase Realtime broadcast channels |
 | Push Notifications | Expo Push API (via `pg_net` from Edge Functions) |
@@ -82,7 +82,8 @@ Wave/
 ├── app/                          # Expo Router screens
 │   ├── _layout.tsx               # Root layout (auth gate)
 │   ├── index.tsx                 # Entry redirect
-│   ├── login.tsx                 # Google Sign In
+│   ├── login.tsx                 # Sign in (Apple, Google, Phone)
+│   ├── phone-login.tsx           # Phone number + OTP verification
 │   ├── birthday.tsx              # Age verification (DOB input)
 │   ├── age-blocked.tsx           # Under-age rejection screen
 │   ├── gender.tsx                # Gender selection
@@ -390,6 +391,7 @@ All tables are protected by Row Level Security. Sensitive operations (match crea
 - **No test suite** — All testing is manual
 - **No crash reporting** — Errors are logged to console only
 - **BLE range** — Effective range is ~30 meters (hardware dependent), with best results under 10 meters
+- **No account linking** — Apple, Google, and Phone sign-ins each create separate Supabase accounts. A user who signs in with different methods will have distinct accounts with separate matches and profile data.
 
 ---
 

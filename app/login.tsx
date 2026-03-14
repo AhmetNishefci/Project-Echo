@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { signInWithGoogle, signInWithApple } from "@/services/auth";
+import { COLORS } from "@/constants/colors";
 import { impactMedium } from "@/utils/haptics";
 
 const waveHand = require("../assets/wave-hand.png");
@@ -115,6 +116,18 @@ export default function LoginScreen() {
                 </Text>
               </>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => router.push("/phone-login")}
+            disabled={loadingProvider !== null}
+            className="w-full bg-wave-surface rounded-2xl py-4 flex-row items-center justify-center border border-wave-muted/30"
+            activeOpacity={0.8}
+          >
+            <Ionicons name="call-outline" size={20} color="white" style={{ marginRight: 8 }} />
+            <Text className="text-white text-base font-semibold">
+              Continue with Phone
+            </Text>
           </TouchableOpacity>
         </View>
 

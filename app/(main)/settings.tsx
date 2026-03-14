@@ -26,7 +26,10 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 export default function SettingsScreen() {
   const { session, dateOfBirth, instagramHandle, setInstagramHandle, snapchatHandle, setSnapchatHandle, gender, genderPreference, setGenderPreference, agePreferenceMin, agePreferenceMax, setAgePreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
   const totalMatches = useWaveStore((s) => s.matches.length);
-  const userEmail = session?.user?.email ?? null;
+  const rawEmail = session?.user?.email ?? null;
+  const userEmail = rawEmail?.includes("privaterelay.appleid.com")
+    ? "Hidden (Apple)"
+    : rawEmail;
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);

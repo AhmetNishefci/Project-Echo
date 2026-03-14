@@ -2,7 +2,7 @@
 
 **Real-world proximity matching through Bluetooth.**
 
-Wave is a mobile app that lets nearby strangers connect. When two people wave at each other, they match and exchange Instagram handles — no profiles, no swiping, just real-world presence.
+Wave is a mobile app that lets nearby strangers connect. When two people wave at each other, they match and exchange socials (Instagram and/or Snapchat) — no profiles, no swiping, just real-world presence.
 
 Built with React Native 0.81, Expo 54, and Supabase.
 
@@ -12,8 +12,8 @@ Built with React Native 0.81, Expo 54, and Supabase.
 
 1. **Discover** — Your phone continuously broadcasts and scans for nearby Wave users via BLE (Bluetooth Low Energy). Each user appears as an anonymous avatar on a radar screen.
 2. **Wave** — Tap a nearby person to send a wave. They don't know who waved — only that someone nearby did.
-3. **Match** — If both people wave at each other, it's a match. Both users receive the other's Instagram handle instantly.
-4. **Connect** — Open their Instagram profile directly from the app and start a conversation.
+3. **Match** — If both people wave at each other, it's a match. Both users see each other's social handles (Instagram and/or Snapchat).
+4. **Connect** — Open their profile directly from the app and start a conversation.
 
 Privacy is core to the design: users are identified only by ephemeral tokens that rotate every 15 minutes. No names, photos, or personal information are ever broadcast over Bluetooth.
 
@@ -86,7 +86,7 @@ Wave/
 │   ├── birthday.tsx              # Age verification (DOB input)
 │   ├── age-blocked.tsx           # Under-age rejection screen
 │   ├── gender.tsx                # Gender selection
-│   ├── onboarding.tsx            # Instagram handle + permissions
+│   ├── onboarding.tsx            # Social handles (Instagram/Snapchat)
 │   ├── note.tsx                  # Personal note editor
 │   ├── nearby-alerts.tsx         # Push notification opt-in
 │   └── (main)/                   # Authenticated screens
@@ -130,6 +130,7 @@ Wave/
 │       ├── haptics.ts            # Haptic feedback
 │       ├── sound.ts              # Match chime audio
 │       ├── seedPeers.ts          # Dev-only simulated peers
+│       ├── deepLink.ts           # Social platform deep-link helpers
 │       └── platform.ts           # Platform utilities
 ├── modules/
 │   └── expo-ble-peripheral/      # Custom Expo module (Swift/CoreBluetooth)
@@ -151,7 +152,10 @@ Wave/
 │       ├── 00001_initial_schema.sql
 │       ├── 00002_tighten_grants.sql
 │       ├── 00003_add_age_restriction.sql
-│       └── 00004_dob_age_check.sql
+│       ├── 00004_dob_age_check.sql
+│       ├── 00005_age_preference.sql
+│       ├── 00006_revoke_rpc_grants.sql
+│       └── 00007_add_snapchat_contact.sql
 └── assets/                       # App icons, splash screen, sounds
 ```
 
@@ -208,7 +212,7 @@ Live view of nearby Wave users. Each peer is shown as a deterministic anonymous 
 - Server uses PostgreSQL advisory locks with `LEAST/GREATEST` user-pair ordering for atomic match creation
 - On match: both users receive a Supabase Realtime broadcast event + push notification
 - Match celebration screen with confetti animation, haptic feedback, and match chime
-- Instagram handle fetched via authenticated RPC (not broadcast for security)
+- Contact handles (Instagram/Snapchat) fetched via authenticated RPC (not broadcast for security)
 
 ### Undo Wave
 Waves can be undone within a time window. The undo request goes through the same `send-wave` endpoint with `action: "undo"`.
@@ -331,7 +335,7 @@ Wave uses a custom dark theme via NativeWind/Tailwind:
 
 Core tables (managed via migrations in `supabase/migrations/`):
 
-- **`profiles`** — User profiles (gender, DOB, Instagram handle, push token, location via PostGIS)
+- **`profiles`** — User profiles (gender, DOB, Instagram/Snapchat handles, push token, location via PostGIS)
 - **`ephemeral_ids`** — Active ephemeral tokens mapped to users (rotated every 15 min)
 - **`waves`** — Pending wave records (token → token, expires after 15 min)
 - **`matches`** — Confirmed matches (user pairs, created via advisory locks)

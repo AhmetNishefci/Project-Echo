@@ -1,8 +1,9 @@
-import { View, Text, SectionList, TouchableOpacity, Linking, Share, Alert, ActionSheetIOS, Platform, ActivityIndicator } from "react-native";
+import { View, Text, SectionList, TouchableOpacity, Share, Alert, ActionSheetIOS, Platform, ActivityIndicator, Linking } from "react-native";
 import { useMemo, useEffect, useRef, useCallback, useState } from "react";
 import { useWaveStore } from "@/stores/waveStore";
 import { removeMatchFromServer } from "@/services/wave/waves";
 import { loadMoreMatches } from "@/services/wave/matches";
+import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
 import type { Match } from "@/types";
 
 /** Group matches by date (Today, Yesterday, Earlier) */
@@ -158,20 +159,22 @@ function MatchRow({ match }: { match: Match }) {
     minute: "2-digit",
   });
 
-  const handle = match.instagramHandle;
+  const igHandle = match.instagramHandle;
+  const scHandle = match.snapchatHandle;
+  const hasHandle = !!igHandle || !!scHandle;
+  // Display name: prefer Instagram, fallback to Snapchat
+  const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : null;
 
-  const openInstagram = useCallback(() => {
-    if (!handle) return;
-    Linking.openURL(`instagram://user?username=${handle}`).catch(() => {
-      Linking.openURL(`https://instagram.com/${handle}`).catch(() => {});
-    });
-  }, [handle]);
+  const openPrimaryContact = useCallback(() => {
+    if (igHandle) openInstagramProfile(igHandle);
+    else if (scHandle) openSnapchatProfile(scHandle);
+  }, [igHandle, scHandle]);
 
   const handleRemove = useCallback(() => {
     Alert.alert(
       "Remove Match",
-      handle
-        ? `Remove @${handle}? This removes the match for both of you.`
+      displayName
+        ? `Remove ${displayName}? This removes the match for both of you.`
         : "Remove this match? This removes it for both of you.",
       [
         { text: "Cancel", style: "cancel" },
@@ -187,7 +190,7 @@ function MatchRow({ match }: { match: Match }) {
         },
       ],
     );
-  }, [match.matchId, handle]);
+  }, [match.matchId, displayName]);
 
   const handleReport = useCallback(() => {
     Linking.openURL(
@@ -197,41 +200,43 @@ function MatchRow({ match }: { match: Match }) {
 
   const showActions = useCallback(() => {
     if (Platform.OS === "ios") {
-      const options = handle
-        ? ["Open Instagram", "Remove Match", "Report User", "Cancel"]
-        : ["Remove Match", "Report User", "Cancel"];
+      const options: string[] = [];
+      if (igHandle) options.push("Open Instagram");
+      if (scHandle) options.push("Open Snapchat");
+      options.push("Remove Match", "Report User", "Cancel");
+
       const cancelIndex = options.length - 1;
-      const destructiveIndex = handle ? 1 : 0;
+      const destructiveIndex = options.indexOf("Remove Match");
 
       ActionSheetIOS.showActionSheetWithOptions(
         { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
         (index) => {
-          if (handle) {
-            if (index === 0) openInstagram();
-            else if (index === 1) handleRemove();
-            else if (index === 2) handleReport();
-          } else {
-            if (index === 0) handleRemove();
-            else if (index === 1) handleReport();
+          const selected = options[index];
+          if (selected === "Open Instagram" && igHandle) {
+            openInstagramProfile(igHandle);
+          } else if (selected === "Open Snapchat" && scHandle) {
+            openSnapchatProfile(scHandle);
+          } else if (selected === "Remove Match") {
+            handleRemove();
+          } else if (selected === "Report User") {
+            handleReport();
           }
         },
       );
     } else {
-      // Android fallback — use Alert with buttons
       Alert.alert("Match Options", undefined, [
-        ...(handle
-          ? [{ text: "Open Instagram", onPress: openInstagram }]
-          : []),
+        ...(igHandle ? [{ text: "Open Instagram", onPress: () => openInstagramProfile(igHandle) }] : []),
+        ...(scHandle ? [{ text: "Open Snapchat", onPress: () => openSnapchatProfile(scHandle) }] : []),
         { text: "Remove Match", style: "destructive" as const, onPress: () => handleRemove() },
         { text: "Report User", onPress: handleReport },
         { text: "Cancel", style: "cancel" as const },
       ]);
     }
-  }, [handle, openInstagram, handleRemove, handleReport]);
+  }, [igHandle, scHandle, handleRemove, handleReport]);
 
   return (
     <TouchableOpacity
-      onPress={handle ? openInstagram : showActions}
+      onPress={hasHandle ? openPrimaryContact : showActions}
       onLongPress={showActions}
       activeOpacity={0.7}
       className="bg-wave-surface rounded-2xl p-4 mb-3 flex-row items-center"
@@ -243,10 +248,10 @@ function MatchRow({ match }: { match: Match }) {
 
       {/* Info */}
       <View className="flex-1">
-        {handle ? (
+        {hasHandle ? (
           <>
             <Text className="text-white font-semibold text-base">
-              @{handle}
+              {displayName}
             </Text>
             <Text className="text-wave-muted text-xs mt-1">
               Matched at {time}
@@ -258,15 +263,18 @@ function MatchRow({ match }: { match: Match }) {
               Someone nearby
             </Text>
             <Text className="text-wave-muted text-xs mt-1">
-              Matched at {time} · No Instagram linked
+              Matched at {time} · No socials linked
             </Text>
           </>
         )}
       </View>
 
-      {/* Instagram indicator or unseen dot */}
-      {handle ? (
-        <Text className="text-wave-muted text-xs">📸</Text>
+      {/* Platform indicators or unseen dot */}
+      {hasHandle ? (
+        <View className="flex-row items-center" style={{ gap: 4 }}>
+          {igHandle && <Text className="text-xs">📸</Text>}
+          {scHandle && <Text className="text-xs">👻</Text>}
+        </View>
       ) : !match.seen ? (
         <View className="w-3 h-3 rounded-full bg-wave-match" />
       ) : null}

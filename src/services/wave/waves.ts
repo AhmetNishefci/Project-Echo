@@ -119,6 +119,7 @@ export async function sendWave(
       matched_user_id?: string;
       target_user_id?: string;
       instagram_handle?: string;
+      snapchat_handle?: string;
       reason?: string;
     };
 
@@ -129,6 +130,7 @@ export async function sendWave(
         matchId: result.match_id,
         matchedUserId: result.matched_user_id,
         instagramHandle: result.instagram_handle ?? undefined,
+        snapchatHandle: result.snapchat_handle ?? undefined,
         createdAt: new Date().toISOString(),
         seen: false,
       };
@@ -148,6 +150,7 @@ export async function sendWave(
           matchId: result.match_id,
           matchedUserId: result.matched_user_id,
           instagramHandle: result.instagram_handle ?? undefined,
+          snapchatHandle: result.snapchat_handle ?? undefined,
           createdAt: new Date().toISOString(),
           seen: true,
         };

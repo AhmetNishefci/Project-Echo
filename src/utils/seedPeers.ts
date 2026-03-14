@@ -146,8 +146,8 @@ export function seedFakePeers(): void {
   waveStore.addIncomingWaveToken(fakePeers[18].ephemeralToken); // CLOSE zone
   waveStore.addIncomingWaveToken(fakePeers[25].ephemeralToken); // CLOSE zone
   waveStore.addPendingWave(fakePeers[4].ephemeralToken);
-  waveStore.addMatchedToken(fakePeers[8].ephemeralToken, "emma.w");
-  waveStore.addMatchedToken(fakePeers[12].ephemeralToken, "jake_adventures");
+  waveStore.addMatchedToken(fakePeers[8].ephemeralToken, { instagram: "emma.w" });
+  waveStore.addMatchedToken(fakePeers[12].ephemeralToken, { instagram: "jake_adventures", snapchat: "jake_snap" });
 }
 
 /**

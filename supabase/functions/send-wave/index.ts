@@ -246,12 +246,13 @@ serve(async (req: Request) => {
 
     // ─── MATCH → broadcast + push ───────────────────────────────
     let matchedInstagramHandle: string | null = null;
+    let matchedSnapchatHandle: string | null = null;
 
     if (result.status === "match" && result.matched_user_id) {
-      // Look up Instagram handles for both users
+      // Look up contact handles for both users
       const { data: profiles } = await adminClient
         .from("profiles")
-        .select("id, instagram_handle")
+        .select("id, instagram_handle, snapchat_handle")
         .in("id", [user.id, result.matched_user_id]);
 
       const waverHandle =
@@ -259,6 +260,9 @@ serve(async (req: Request) => {
       matchedInstagramHandle =
         profiles?.find((p: any) => p.id === result.matched_user_id)
           ?.instagram_handle ?? null;
+      matchedSnapchatHandle =
+        profiles?.find((p: any) => p.id === result.matched_user_id)
+          ?.snapchat_handle ?? null;
 
       const matchPayload = {
         match_id: result.match_id,
@@ -310,21 +314,22 @@ serve(async (req: Request) => {
       });
     }
 
-    // ─── ALREADY MATCHED → return instagram handle so client can re-populate ──
+    // ─── ALREADY MATCHED → return handles so client can re-populate ──
     if (result.status === "already_matched" && result.matched_user_id) {
       const { data: profile } = await adminClient
         .from("profiles")
-        .select("instagram_handle")
+        .select("instagram_handle, snapchat_handle")
         .eq("id", result.matched_user_id)
         .single();
 
       matchedInstagramHandle = profile?.instagram_handle ?? null;
+      matchedSnapchatHandle = profile?.snapchat_handle ?? null;
     }
 
     return new Response(JSON.stringify({
       ...result,
       ...((result.status === "match" || result.status === "already_matched")
-        ? { instagram_handle: matchedInstagramHandle } : {}),
+        ? { instagram_handle: matchedInstagramHandle, snapchat_handle: matchedSnapchatHandle } : {}),
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -7,7 +7,7 @@ import { useBleStore } from "@/stores/bleStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
 import { signOut } from "@/services/auth";
-import { saveInstagramHandle, updateGenderPreference, updateAgePreference, saveNote, saveNearbyAlertsPreference, saveDailyPushesPreference } from "@/services/profile";
+import { saveInstagramHandle, saveSnapchatHandle, updateGenderPreference, updateAgePreference, saveNote, saveNearbyAlertsPreference, saveDailyPushesPreference } from "@/services/profile";
 import { requestLocationPermission, hasLocationPermission, isLocationBlocked } from "@/services/location";
 import { supabase } from "@/services/supabase";
 import { waveBleManager } from "@/services/ble/bleManager";
@@ -24,7 +24,7 @@ const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { session, dateOfBirth, instagramHandle, setInstagramHandle, gender, genderPreference, setGenderPreference, agePreferenceMin, agePreferenceMax, setAgePreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
+  const { session, dateOfBirth, instagramHandle, setInstagramHandle, snapchatHandle, setSnapchatHandle, gender, genderPreference, setGenderPreference, agePreferenceMin, agePreferenceMax, setAgePreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
   const totalMatches = useWaveStore((s) => s.matches.length);
   const userEmail = session?.user?.email ?? null;
   const router = useRouter();
@@ -33,6 +33,9 @@ export default function SettingsScreen() {
   const [editingHandle, setEditingHandle] = useState(false);
   const [handleInput, setHandleInput] = useState(instagramHandle ?? "");
   const [savingHandle, setSavingHandle] = useState(false);
+  const [editingSnapchat, setEditingSnapchat] = useState(false);
+  const [snapchatInput, setSnapchatInput] = useState(snapchatHandle ?? "");
+  const [savingSnapchat, setSavingSnapchat] = useState(false);
   const [savingPreference, setSavingPreference] = useState(false);
   const [savingAgePref, setSavingAgePref] = useState(false);
   const ageSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,6 +77,27 @@ export default function SettingsScreen() {
       showToast("This username is already taken.", "error");
     } else {
       showToast("Invalid username. Use letters, numbers, dots, and underscores.", "error");
+    }
+  };
+
+  const handleSaveSnapchat = async () => {
+    const trimmed = snapchatInput.trim().replace(/^@/, "");
+    if (!trimmed) return;
+
+    impactLight();
+    setSavingSnapchat(true);
+
+    const result = await saveSnapchatHandle(trimmed);
+    setSavingSnapchat(false);
+
+    if (result.handle) {
+      setSnapchatHandle(result.handle);
+      setEditingSnapchat(false);
+      showToast("Snapchat updated");
+    } else if (result.error === "taken") {
+      showToast("This Snapchat username is already taken.", "error");
+    } else {
+      showToast("Invalid Snapchat username. 3-15 characters, starts with a letter.", "error");
     }
   };
 
@@ -443,6 +467,67 @@ export default function SettingsScreen() {
         )}
         <Text className="text-wave-muted text-xs mt-2 leading-4">
           Shown to you and your match after a mutual wave.
+        </Text>
+      </Section>
+
+      {/* Snapchat */}
+      <Section title="Snapchat">
+        {editingSnapchat ? (
+          <View>
+            <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
+              <TextInput
+                value={snapchatInput}
+                onChangeText={setSnapchatInput}
+                placeholder="username"
+                placeholderTextColor="#555"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="off"
+                className="flex-1 text-white text-sm"
+                style={{ lineHeight: 18, paddingVertical: 0 }}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleSaveSnapchat}
+              />
+            </View>
+            <View className="flex-row justify-end mt-3">
+              <TouchableOpacity
+                onPress={() => {
+                  setEditingSnapchat(false);
+                  setSnapchatInput(snapchatHandle ?? "");
+                }}
+                className="rounded-lg px-4 py-2 mr-2"
+              >
+                <Text className="text-wave-muted text-sm">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleSaveSnapchat}
+                disabled={savingSnapchat || !snapchatInput.trim()}
+                className="bg-wave-primary rounded-lg px-5 py-2"
+              >
+                {savingSnapchat ? (
+                  <ActivityIndicator color="white" size="small" />
+                ) : (
+                  <Text className="text-white text-sm font-semibold">Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <TouchableOpacity onPress={() => setEditingSnapchat(true)} activeOpacity={0.7}>
+            <View className="flex-row justify-between items-center py-1.5">
+              <Text className="text-wave-muted text-sm">Username</Text>
+              <View className="flex-row items-center">
+                <Text className="text-white text-sm font-mono mr-2">
+                  {snapchatHandle || "Not set"}
+                </Text>
+                <Ionicons name="pencil" size={14} color="#6c63ff" />
+              </View>
+            </View>
+          </TouchableOpacity>
+        )}
+        <Text className="text-wave-muted text-xs mt-2 leading-4">
+          Shown to your match after a mutual wave.
         </Text>
       </Section>
 

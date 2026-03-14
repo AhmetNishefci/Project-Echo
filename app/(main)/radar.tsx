@@ -274,7 +274,10 @@ export default function RadarScreen() {
       setToast({ message: "Could not send wave. Try again.", variant: "error" });
     } else if (result.status === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
-      store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
+      store.addMatchedToken(peer.ephemeralToken, {
+        instagram: result.match?.instagramHandle,
+        snapchat: result.match?.snapchatHandle,
+      });
       setToast({ message: "You've already matched with this person!" });
     } else if (result.status === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
@@ -282,7 +285,10 @@ export default function RadarScreen() {
       setToast({ message: "You're waving too fast. Wait a moment.", variant: "error" });
     } else if (result.status === "match") {
       store.removePendingWave(peer.ephemeralToken);
-      store.addMatchedToken(peer.ephemeralToken, result.match?.instagramHandle);
+      store.addMatchedToken(peer.ephemeralToken, {
+        instagram: result.match?.instagramHandle,
+        snapchat: result.match?.snapchatHandle,
+      });
       notifySuccess();
       logger.wave("Match from wave!");
     } else if (result.status === "pending") {

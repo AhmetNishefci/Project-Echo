@@ -15,6 +15,7 @@ export function resetTimezoneSyncCache(): void {
 export interface UserProfile {
   dateOfBirth: string | null;
   instagramHandle: string | null;
+  snapchatHandle: string | null;
   gender: Gender | null;
   genderPreference: GenderPreference | null;
   agePreferenceMin: number | null;
@@ -41,7 +42,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("date_of_birth, instagram_handle, gender, gender_preference, age_preference_min, age_preference_max, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
+      .select("date_of_birth, instagram_handle, snapchat_handle, gender, gender_preference, age_preference_min, age_preference_max, note, nearby_alerts_enabled, nearby_alerts_onboarded, daily_pushes_enabled")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -53,6 +54,7 @@ export async function fetchProfile(): Promise<UserProfile | null> {
     return {
       dateOfBirth: data?.date_of_birth ?? null,
       instagramHandle: data?.instagram_handle ?? null,
+      snapchatHandle: data?.snapchat_handle ?? null,
       gender: data?.gender ?? null,
       genderPreference: data?.gender_preference ?? null,
       agePreferenceMin: data?.age_preference_min ?? null,
@@ -317,6 +319,58 @@ export async function saveInstagramHandle(
     return { handle };
   } catch (err) {
     logger.error("saveInstagramHandle exception", err);
+    return { handle: null };
+  }
+}
+
+/**
+ * Save/update the user's Snapchat handle.
+ * Strips leading @, lowercases, and validates.
+ * Returns { handle } on success, { handle: null, error } on failure.
+ */
+export async function saveSnapchatHandle(
+  rawHandle: string,
+): Promise<HandleSaveResult> {
+  try {
+    let handle = rawHandle.trim().toLowerCase();
+    if (handle.startsWith("@")) {
+      handle = handle.substring(1);
+    }
+
+    // Snapchat usernames: 3-15 chars, start with letter, alphanumeric + dots/underscores/hyphens,
+    // end with letter or number.
+    const scRegex = /^[a-z][a-z0-9._-]{1,13}[a-z0-9]$/;
+    if (!scRegex.test(handle)) {
+      logger.error("saveSnapchatHandle: invalid format", { handle });
+      return { handle: null, error: "invalid" };
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      logger.error("saveSnapchatHandle: no user");
+      return { handle: null };
+    }
+
+    const { error } = await supabase.rpc("claim_snapchat_handle", {
+      p_handle: handle,
+    });
+
+    if (error) {
+      if (error.code === "23505") {
+        logger.error("saveSnapchatHandle: handle already taken", { handle });
+        return { handle: null, error: "taken" };
+      }
+      logger.error("saveSnapchatHandle error", error);
+      return { handle: null };
+    }
+
+    logger.auth("Snapchat handle saved", { handle });
+    return { handle };
+  } catch (err) {
+    logger.error("saveSnapchatHandle exception", err);
     return { handle: null };
   }
 }

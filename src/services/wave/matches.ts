@@ -105,22 +105,25 @@ async function mergeServerMatches(
   userId: string,
   isFirstPage: boolean,
 ): Promise<void> {
-  // Fetch Instagram handles via authenticated RPC
+  // Fetch contact handles via authenticated RPC
   const matchIds = data.map((row) => row.id);
   const { data: handleRows, error: handleError } = await supabase.rpc(
-    "get_matched_instagram_handles",
+    "get_matched_contact_handles",
     { p_match_ids: matchIds },
   );
 
-  const handleMap = new Map<string, string>();
+  const handleMap = new Map<string, { instagram?: string; snapchat?: string }>();
   if (!handleError && handleRows) {
-    for (const row of handleRows as { match_id: string; instagram_handle: string | null }[]) {
-      if (row.instagram_handle) {
-        handleMap.set(row.match_id, row.instagram_handle);
+    for (const row of handleRows as { match_id: string; instagram_handle: string | null; snapchat_handle: string | null }[]) {
+      const handles: { instagram?: string; snapchat?: string } = {};
+      if (row.instagram_handle) handles.instagram = row.instagram_handle;
+      if (row.snapchat_handle) handles.snapchat = row.snapchat_handle;
+      if (handles.instagram || handles.snapchat) {
+        handleMap.set(row.match_id, handles);
       }
     }
   } else if (handleError) {
-    logger.error("Failed to fetch match handles via RPC", handleError);
+    logger.error("Failed to fetch match contact handles via RPC", handleError);
   }
 
   const store = useWaveStore.getState();
@@ -135,7 +138,8 @@ async function mergeServerMatches(
       return {
         matchId: row.id,
         matchedUserId,
-        instagramHandle: handleMap.get(row.id),
+        instagramHandle: handleMap.get(row.id)?.instagram,
+        snapchatHandle: handleMap.get(row.id)?.snapchat,
         createdAt: row.created_at,
         seen: true, // Server-fetched matches are treated as seen
       };
@@ -152,11 +156,16 @@ async function mergeServerMatches(
 
   // Also update handles for existing matches that may have been missing
   for (const row of data) {
-    const handle = handleMap.get(row.id);
-    if (handle) {
+    const handles = handleMap.get(row.id);
+    if (handles) {
       const existing = store.matches.find((m) => m.matchId === row.id);
-      if (existing && !existing.instagramHandle) {
-        store.updateMatchHandle(row.id, handle);
+      if (existing) {
+        const updates: { instagramHandle?: string; snapchatHandle?: string } = {};
+        if (handles.instagram && !existing.instagramHandle) updates.instagramHandle = handles.instagram;
+        if (handles.snapchat && !existing.snapchatHandle) updates.snapchatHandle = handles.snapchat;
+        if (updates.instagramHandle || updates.snapchatHandle) {
+          store.updateMatchHandles(row.id, updates);
+        }
       }
     }
   }

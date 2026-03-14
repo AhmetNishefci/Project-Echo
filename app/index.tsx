@@ -30,7 +30,7 @@ export default function IndexScreen() {
    */
   const routeFromProfile = useCallback(
     (profile: NonNullable<Awaited<ReturnType<typeof fetchProfile>>>) => {
-      const { setDateOfBirth, setGender, setGenderPreference, setAgePreference, setInstagramHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
+      const { setDateOfBirth, setGender, setGenderPreference, setAgePreference, setInstagramHandle, setSnapchatHandle, setNote, setNearbyAlertsEnabled, setDailyPushesEnabled } =
         useAuthStore.getState();
 
       // Age check — must happen before all other onboarding steps
@@ -60,13 +60,14 @@ export default function IndexScreen() {
       setGenderPreference(profile.genderPreference);
       setAgePreference(profile.agePreferenceMin, profile.agePreferenceMax);
 
-      if (!profile.instagramHandle) {
-        logger.auth("No handle, redirecting to onboarding");
+      if (!profile.instagramHandle && !profile.snapchatHandle) {
+        logger.auth("No contact handles, redirecting to onboarding");
         router.replace("/onboarding");
         return;
       }
 
       setInstagramHandle(profile.instagramHandle);
+      setSnapchatHandle(profile.snapchatHandle);
       setNote(profile.note);
       setNearbyAlertsEnabled(profile.nearbyAlertsEnabled);
       setDailyPushesEnabled(profile.dailyPushesEnabled);

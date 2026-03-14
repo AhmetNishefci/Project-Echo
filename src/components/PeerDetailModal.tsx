@@ -1,5 +1,6 @@
-import { View, Text, TouchableOpacity, Modal, Pressable, Linking } from "react-native";
+import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
 import { useRouter } from "expo-router";
+import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
 import { useWaveStore } from "@/stores/waveStore";
 import type { NearbyPeer, DistanceZone } from "@/types";
 import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
@@ -25,14 +26,12 @@ export function PeerDetailModal({
   const zoneColor = ZONE_CONFIG[zone].color;
   const freshness = getTimeSince(peer.lastSeen);
   const isMatched = useWaveStore((s) => s.matchedTokens.has(peer.ephemeralToken));
-  const instagramHandle = useWaveStore((s) => s.matchedHandles.get(peer.ephemeralToken));
+  const matchedHandles = useWaveStore((s) => s.matchedHandles.get(peer.ephemeralToken));
+  const instagramHandle = matchedHandles?.instagram;
+  const snapchatHandle = matchedHandles?.snapchat;
 
-  const openInstagram = () => {
-    if (!instagramHandle) return;
-    Linking.openURL(`instagram://user?username=${instagramHandle}`).catch(() => {
-      Linking.openURL(`https://instagram.com/${instagramHandle}`).catch(() => {});
-    });
-  };
+  const openInstagram = () => instagramHandle && openInstagramProfile(instagramHandle);
+  const openSnapchat = () => snapchatHandle && openSnapchatProfile(snapchatHandle);
 
   return (
     <Modal transparent animationType="fade" onRequestClose={onClose}>
@@ -60,15 +59,28 @@ export function PeerDetailModal({
             )}
           </View>
 
-          {/* Instagram handle (if matched) */}
-          {isMatched && instagramHandle && (
-            <TouchableOpacity
-              onPress={openInstagram}
-              className="bg-wave-bg rounded-xl px-4 py-3 mb-4 flex-row items-center justify-between"
-            >
-              <Text className="text-wave-muted text-sm">Instagram</Text>
-              <Text className="text-wave-accent text-sm font-semibold">@{instagramHandle}</Text>
-            </TouchableOpacity>
+          {/* Contact handles (if matched) */}
+          {isMatched && (instagramHandle || snapchatHandle) && (
+            <View className="mb-4" style={{ gap: 8 }}>
+              {instagramHandle && (
+                <TouchableOpacity
+                  onPress={openInstagram}
+                  className="bg-wave-bg rounded-xl px-4 py-3 flex-row items-center justify-between"
+                >
+                  <Text className="text-wave-muted text-sm">Instagram</Text>
+                  <Text className="text-wave-accent text-sm font-semibold">@{instagramHandle}</Text>
+                </TouchableOpacity>
+              )}
+              {snapchatHandle && (
+                <TouchableOpacity
+                  onPress={openSnapchat}
+                  className="bg-wave-bg rounded-xl px-4 py-3 flex-row items-center justify-between"
+                >
+                  <Text className="text-wave-muted text-sm">Snapchat</Text>
+                  <Text className="text-wave-accent text-sm font-semibold">{snapchatHandle}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           )}
 
           {/* Details */}

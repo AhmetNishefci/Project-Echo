@@ -55,8 +55,15 @@ export interface Match {
   matchId: string;
   matchedUserId: string;
   instagramHandle?: string;
+  snapchatHandle?: string;
   createdAt: string;
   seen: boolean;
+}
+
+/** Contact handles for a matched peer (used in radar detail modal) */
+export interface ContactHandles {
+  instagram?: string;
+  snapchat?: string;
 }
 
 export type BlePermissionStatus = "unknown" | "granted" | "denied" | "blocked";

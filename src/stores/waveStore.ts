@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { WavePending, Match } from "@/types";
+import type { WavePending, Match, ContactHandles } from "@/types";
 
 interface WaveState {
   currentToken: string | null;
@@ -33,11 +33,11 @@ interface WaveState {
 
   /** Ephemeral tokens that returned already_matched this session */
   matchedTokens: Set<string>;
-  /** Map ephemeral token → Instagram handle for matched peers (display in detail modal) */
-  matchedHandles: Map<string, string>;
+  /** Map ephemeral token → contact handles for matched peers (display in detail modal) */
+  matchedHandles: Map<string, ContactHandles>;
   /** Map userId → ephemeralToken for pending waves (bridges realtime match events to radar) */
   pendingWaveUserMap: Map<string, string>;
-  addMatchedToken: (token: string, instagramHandle?: string) => void;
+  addMatchedToken: (token: string, handles?: ContactHandles) => void;
   clearMatchedTokens: () => void;
   setPendingWaveUser: (userId: string, ephemeralToken: string) => void;
   removePendingWaveByToken: (ephemeralToken: string) => void;
@@ -45,6 +45,7 @@ interface WaveState {
   addMatch: (match: Match) => void;
   removeMatch: (matchId: string) => void;
   updateMatchHandle: (matchId: string, instagramHandle: string) => void;
+  updateMatchHandles: (matchId: string, handles: { instagramHandle?: string; snapchatHandle?: string }) => void;
   markMatchSeen: (matchId: string) => void;
   clearMatches: () => void;
 
@@ -67,7 +68,7 @@ export const useWaveStore = create<WaveState>()(
       latestUnseenMatch: null,
 
       matchedTokens: new Set<string>(),
-      matchedHandles: new Map<string, string>(),
+      matchedHandles: new Map<string, ContactHandles>(),
       pendingWaveUserMap: new Map<string, string>(),
 
       setToken: (token, expiresAt) =>
@@ -109,16 +110,19 @@ export const useWaveStore = create<WaveState>()(
         })),
       resetIncomingWaveTokens: () => set({ incomingWaveTokens: [] }),
 
-      addMatchedToken: (token, instagramHandle) =>
+      addMatchedToken: (token, handles) =>
         set((state) => {
           const nextTokens = new Set(state.matchedTokens);
           nextTokens.add(token);
           const nextHandles = new Map(state.matchedHandles);
-          if (instagramHandle) nextHandles.set(token, instagramHandle);
+          if (handles && (handles.instagram || handles.snapchat)) {
+            const existing = nextHandles.get(token);
+            nextHandles.set(token, { ...existing, ...handles });
+          }
           return { matchedTokens: nextTokens, matchedHandles: nextHandles };
         }),
 
-      clearMatchedTokens: () => set({ matchedTokens: new Set(), matchedHandles: new Map() }),
+      clearMatchedTokens: () => set({ matchedTokens: new Set(), matchedHandles: new Map<string, ContactHandles>() }),
 
       setPendingWaveUser: (userId, ephemeralToken) =>
         set((state) => {
@@ -144,19 +148,23 @@ export const useWaveStore = create<WaveState>()(
           // Prevent duplicate matches (C9 fix)
           const existing = state.matches.find((m) => m.matchId === match.matchId);
           if (existing) {
-            // Merge instagramHandle if the new call has it and existing doesn't (L1 fix).
-            // This handles the race where Realtime delivers the match first (no handle),
-            // then the HTTP response or push notification arrives with the handle.
-            if (match.instagramHandle && !existing.instagramHandle) {
+            // Merge handles if the new call has data the existing doesn't (L1 fix).
+            // This handles the race where Realtime delivers the match first (no handles),
+            // then the HTTP response arrives with handles.
+            const needsIgUpdate = match.instagramHandle && !existing.instagramHandle;
+            const needsScUpdate = match.snapchatHandle && !existing.snapchatHandle;
+            if (needsIgUpdate || needsScUpdate) {
+              const updates = {
+                ...(needsIgUpdate ? { instagramHandle: match.instagramHandle } : {}),
+                ...(needsScUpdate ? { snapchatHandle: match.snapchatHandle } : {}),
+              };
               return {
                 matches: state.matches.map((m) =>
-                  m.matchId === match.matchId
-                    ? { ...m, instagramHandle: match.instagramHandle }
-                    : m,
+                  m.matchId === match.matchId ? { ...m, ...updates } : m,
                 ),
                 latestUnseenMatch:
                   state.latestUnseenMatch?.matchId === match.matchId
-                    ? { ...state.latestUnseenMatch, instagramHandle: match.instagramHandle }
+                    ? { ...state.latestUnseenMatch, ...updates }
                     : state.latestUnseenMatch,
               };
             }
@@ -172,7 +180,13 @@ export const useWaveStore = create<WaveState>()(
             nextTokens = new Set(state.matchedTokens);
             nextTokens.add(ephemeralToken);
             nextHandles = new Map(state.matchedHandles);
-            if (match.instagramHandle) nextHandles.set(ephemeralToken, match.instagramHandle);
+            const handles: ContactHandles = {};
+            if (match.instagramHandle) handles.instagram = match.instagramHandle;
+            if (match.snapchatHandle) handles.snapchat = match.snapchatHandle;
+            if (handles.instagram || handles.snapchat) {
+              const existing = nextHandles.get(ephemeralToken);
+              nextHandles.set(ephemeralToken, { ...existing, ...handles });
+            }
             nextUserMap = new Map(state.pendingWaveUserMap);
             nextUserMap.delete(match.matchedUserId);
           }
@@ -206,6 +220,27 @@ export const useWaveStore = create<WaveState>()(
               : state.latestUnseenMatch,
         })),
 
+      updateMatchHandles: (matchId: string, handles: { instagramHandle?: string; snapchatHandle?: string }) =>
+        set((state) => ({
+          matches: state.matches.map((m) =>
+            m.matchId === matchId
+              ? {
+                  ...m,
+                  ...(handles.instagramHandle ? { instagramHandle: handles.instagramHandle } : {}),
+                  ...(handles.snapchatHandle ? { snapchatHandle: handles.snapchatHandle } : {}),
+                }
+              : m,
+          ),
+          latestUnseenMatch:
+            state.latestUnseenMatch?.matchId === matchId
+              ? {
+                  ...state.latestUnseenMatch,
+                  ...(handles.instagramHandle ? { instagramHandle: handles.instagramHandle } : {}),
+                  ...(handles.snapchatHandle ? { snapchatHandle: handles.snapchatHandle } : {}),
+                }
+              : state.latestUnseenMatch,
+        })),
+
       markMatchSeen: (matchId) =>
         set((state) => ({
           matches: state.matches.map((m) =>
@@ -231,7 +266,7 @@ export const useWaveStore = create<WaveState>()(
           matches: [],
           latestUnseenMatch: null,
           matchedTokens: new Set(),
-          matchedHandles: new Map(),
+          matchedHandles: new Map<string, ContactHandles>(),
           pendingWaveUserMap: new Map(),
         }),
     }),

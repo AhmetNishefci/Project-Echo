@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, Linking, Dimensions, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, Dimensions, ActivityIndicator } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -13,6 +14,7 @@ import { playMatchChime } from "@/utils/sound";
 import { useWaveStore } from "@/stores/waveStore";
 import { supabase } from "@/services/supabase";
 import { logger } from "@/utils/logger";
+import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const CONFETTI_COUNT = 30;
@@ -57,21 +59,23 @@ export default function MatchScreen() {
     }
   }, [displayMatch, router]);
 
-  const handle = displayMatch?.instagramHandle;
+  const igHandle = displayMatch?.instagramHandle;
+  const scHandle = displayMatch?.snapchatHandle;
+  const hasAnyHandle = !!igHandle || !!scHandle;
 
-  // If the handle hasn't arrived yet (Realtime RPC in-flight), retry fetching it
-  // directly via RPC with timeout. Resolves when handle arrives from store update
-  // or after retries exhausted (~8s total).
-  const [handleLoading, setHandleLoading] = useState(!handle);
+  // If no handles have arrived yet (Realtime RPC in-flight), retry fetching
+  // directly via RPC with timeout. Resolves when handles arrive from store
+  // update or after retries exhausted (~8s total).
+  const [handleLoading, setHandleLoading] = useState(!hasAnyHandle);
   useEffect(() => {
-    if (handle) {
+    if (hasAnyHandle) {
       setHandleLoading(false);
       return;
     }
     if (!displayMatch) return;
 
     let cancelled = false;
-    const retryFetchHandle = async () => {
+    const retryFetchHandles = async () => {
       const MAX_RETRIES = 2;
       const RETRY_DELAY_MS = 2_500;
 
@@ -79,27 +83,33 @@ export default function MatchScreen() {
         if (cancelled) return;
 
         // Check if store was updated by Realtime while we waited
-        const storeHandle = useWaveStore.getState().matches
-          .find((m) => m.matchId === displayMatch.matchId)?.instagramHandle;
-        if (storeHandle) {
-          useWaveStore.getState().updateMatchHandle(displayMatch.matchId, storeHandle);
+        const storeMatch = useWaveStore.getState().matches
+          .find((m) => m.matchId === displayMatch.matchId);
+        if (storeMatch?.instagramHandle || storeMatch?.snapchatHandle) {
+          const handles: { instagramHandle?: string; snapchatHandle?: string } = {};
+          if (storeMatch.instagramHandle) handles.instagramHandle = storeMatch.instagramHandle;
+          if (storeMatch.snapchatHandle) handles.snapchatHandle = storeMatch.snapchatHandle;
+          useWaveStore.getState().updateMatchHandles(displayMatch.matchId, handles);
           if (!cancelled) setHandleLoading(false);
           return;
         }
 
         // Direct RPC fetch
         try {
-          const { data } = await supabase.rpc("get_matched_instagram_handles", {
+          const { data } = await supabase.rpc("get_matched_contact_handles", {
             p_match_ids: [displayMatch.matchId],
           });
 
-          if (!cancelled && data?.[0]?.instagram_handle) {
-            useWaveStore.getState().updateMatchHandle(
-              displayMatch.matchId,
-              data[0].instagram_handle,
-            );
-            setHandleLoading(false);
-            return;
+          if (!cancelled && data?.[0]) {
+            const row = data[0] as { instagram_handle: string | null; snapchat_handle: string | null };
+            if (row.instagram_handle || row.snapchat_handle) {
+              const handles: { instagramHandle?: string; snapchatHandle?: string } = {};
+              if (row.instagram_handle) handles.instagramHandle = row.instagram_handle;
+              if (row.snapchat_handle) handles.snapchatHandle = row.snapchat_handle;
+              useWaveStore.getState().updateMatchHandles(displayMatch.matchId, handles);
+              setHandleLoading(false);
+              return;
+            }
           }
         } catch {
           // Timeout or network error — retry
@@ -111,16 +121,16 @@ export default function MatchScreen() {
       }
 
       if (!cancelled) {
-        logger.wave("Match handle retry exhausted — no handle found", {
+        logger.wave("Match handle retry exhausted — no handles found", {
           matchId: displayMatch.matchId,
         });
         setHandleLoading(false);
       }
     };
 
-    retryFetchHandle();
+    retryFetchHandles();
     return () => { cancelled = true; };
-  }, [handle, displayMatch]);
+  }, [hasAnyHandle, displayMatch]);
 
   const confettiPieces = useMemo<ConfettiPiece[]>(() => {
     return Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
@@ -144,12 +154,8 @@ export default function MatchScreen() {
 
   if (!displayMatch) return null;
 
-  const openInstagram = () => {
-    if (!handle) return;
-    Linking.openURL(`instagram://user?username=${handle}`).catch(() => {
-      Linking.openURL(`https://instagram.com/${handle}`).catch(() => {});
-    });
-  };
+  const openInstagram = () => igHandle && openInstagramProfile(igHandle);
+  const openSnapchat = () => scHandle && openSnapchatProfile(scHandle);
 
   const handleDismiss = () => {
     if (displayMatch) {
@@ -187,46 +193,61 @@ export default function MatchScreen() {
         </View>
       )}
 
-      {/* Instagram handle */}
-      {handle ? (
-        <TouchableOpacity onPress={openInstagram} className="mb-8">
-          <Text className="text-wave-accent text-xl font-semibold">
-            @{handle}
-          </Text>
-        </TouchableOpacity>
+      {/* Contact handles */}
+      {hasAnyHandle ? (
+        <View className="mb-6 items-center" style={{ gap: 8 }}>
+          {igHandle && (
+            <TouchableOpacity onPress={openInstagram} className="flex-row items-center">
+              <Ionicons name="logo-instagram" size={18} color="#6c63ff" style={{ marginRight: 6 }} />
+              <Text className="text-wave-accent text-lg font-semibold">@{igHandle}</Text>
+            </TouchableOpacity>
+          )}
+          {scHandle && (
+            <TouchableOpacity onPress={openSnapchat} className="flex-row items-center">
+              <Ionicons name="logo-snapchat" size={18} color="#FFFC00" style={{ marginRight: 6 }} />
+              <Text className="text-wave-accent text-lg font-semibold">{scHandle}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ) : handleLoading ? (
-        <View className="mb-8 flex-row items-center">
+        <View className="mb-6 flex-row items-center">
           <ActivityIndicator size="small" color="#666680" />
-          <Text className="text-wave-muted text-sm ml-2">
-            Loading Instagram...
-          </Text>
+          <Text className="text-wave-muted text-sm ml-2">Loading socials...</Text>
         </View>
       ) : (
-        <Text className="text-wave-muted text-sm mb-8">
-          No Instagram linked
-        </Text>
+        <Text className="text-wave-muted text-sm mb-6">No socials linked</Text>
       )}
 
-      {/* Open Instagram button */}
-      {handle && (
-        <TouchableOpacity
-          onPress={openInstagram}
-          className="bg-wave-match py-4 px-12 rounded-2xl mb-4 flex-row items-center"
-        >
-          <Text className="text-white text-lg font-semibold">
-            Open in Instagram
-          </Text>
-        </TouchableOpacity>
+      {/* Action buttons */}
+      {hasAnyHandle && (
+        <View className="w-full mb-4" style={{ gap: 10 }}>
+          {igHandle && (
+            <TouchableOpacity
+              onPress={openInstagram}
+              className="bg-wave-match py-4 rounded-2xl flex-row items-center justify-center"
+            >
+              <Ionicons name="logo-instagram" size={20} color="white" style={{ marginRight: 8 }} />
+              <Text className="text-white text-lg font-semibold">Open Instagram</Text>
+            </TouchableOpacity>
+          )}
+          {scHandle && (
+            <TouchableOpacity
+              onPress={openSnapchat}
+              className="bg-yellow-400 py-4 rounded-2xl flex-row items-center justify-center"
+            >
+              <Ionicons name="logo-snapchat" size={20} color="black" style={{ marginRight: 8 }} />
+              <Text className="text-black text-lg font-semibold">Open Snapchat</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
 
       {/* Dismiss button */}
       <TouchableOpacity
         onPress={handleDismiss}
-        className={`py-4 px-12 rounded-2xl ${handle ? "bg-wave-surface" : "bg-wave-primary"}`}
+        className={`w-full py-4 rounded-2xl items-center ${hasAnyHandle ? "bg-wave-surface" : "bg-wave-primary"}`}
       >
-        <Text className="text-white text-lg font-semibold">
-          Back to Radar
-        </Text>
+        <Text className="text-white text-lg font-semibold">Back to Radar</Text>
       </TouchableOpacity>
     </View>
   );

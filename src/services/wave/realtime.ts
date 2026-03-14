@@ -158,7 +158,7 @@ export function unsubscribeFromMatches(): void {
 }
 
 /**
- * Fetch the matched user's Instagram handle via authenticated RPC.
+ * Fetch the matched user's contact handles via authenticated RPC.
  * Retries up to 3 times with exponential backoff (1s, 2s, 4s).
  * Updates the match in the store once retrieved.
  */
@@ -166,12 +166,12 @@ async function fetchMatchHandle(matchId: string): Promise<void> {
   const MAX_RETRIES = 3;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    const { data, error } = await supabase.rpc("get_matched_instagram_handles", {
+    const { data, error } = await supabase.rpc("get_matched_contact_handles", {
       p_match_ids: [matchId],
     });
 
     if (error) {
-      logger.error(`RPC get_matched_instagram_handles failed (attempt ${attempt + 1})`, error);
+      logger.error(`RPC get_matched_contact_handles failed (attempt ${attempt + 1})`, error);
       if (attempt < MAX_RETRIES - 1) {
         await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
         continue;
@@ -179,10 +179,14 @@ async function fetchMatchHandle(matchId: string): Promise<void> {
       return;
     }
 
-    const row = (data as { match_id: string; instagram_handle: string | null }[] | null)?.[0];
-    if (row?.instagram_handle) {
-      useWaveStore.getState().updateMatchHandle(matchId, row.instagram_handle);
-      logger.wave("Match handle fetched via RPC", { matchId, handle: row.instagram_handle });
+    const row = (data as { match_id: string; instagram_handle: string | null; snapchat_handle: string | null }[] | null)?.[0];
+    const handles: { instagramHandle?: string; snapchatHandle?: string } = {};
+    if (row?.instagram_handle) handles.instagramHandle = row.instagram_handle;
+    if (row?.snapchat_handle) handles.snapchatHandle = row.snapchat_handle;
+
+    if (handles.instagramHandle || handles.snapchatHandle) {
+      useWaveStore.getState().updateMatchHandles(matchId, handles);
+      logger.wave("Match handles fetched via RPC", { matchId, handles });
     }
     return;
   }

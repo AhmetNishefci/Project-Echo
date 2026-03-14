@@ -9,6 +9,7 @@ interface AuthState {
   isAuthenticated: boolean;
   dateOfBirth: string | null;
   instagramHandle: string | null;
+  snapchatHandle: string | null;
   gender: Gender | null;
   age: number | null;
   genderPreference: GenderPreference | null;
@@ -22,6 +23,7 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
   setDateOfBirth: (dob: string | null) => void;
   setInstagramHandle: (handle: string | null) => void;
+  setSnapchatHandle: (handle: string | null) => void;
   setGender: (gender: Gender | null) => void;
   setAge: (age: number | null) => void;
   setGenderPreference: (pref: GenderPreference | null) => void;
@@ -39,6 +41,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   isAuthenticated: false,
   dateOfBirth: null,
   instagramHandle: null,
+  snapchatHandle: null,
   gender: null,
   age: null,
   genderPreference: null,
@@ -61,6 +64,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   setDateOfBirth: (dateOfBirth) => set({ dateOfBirth }),
 
   setInstagramHandle: (instagramHandle) => set({ instagramHandle }),
+
+  setSnapchatHandle: (snapchatHandle) => set({ snapchatHandle }),
 
   setGender: (gender) => set({ gender }),
 
@@ -85,6 +90,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       isAuthenticated: false,
       dateOfBirth: null,
       instagramHandle: null,
+      snapchatHandle: null,
       gender: null,
       age: null,
       genderPreference: null,

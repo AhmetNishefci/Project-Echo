@@ -6,6 +6,7 @@ import { fetchProfile, syncTimezoneAndActivity } from "@/services/profile";
 import { fetchMatchesFromServer } from "@/services/wave/matches";
 import { logger } from "@/utils/logger";
 import { isAtLeastAge } from "@/utils/age";
+import { impactMedium } from "@/utils/haptics";
 
 const appIcon = require("../assets/icon.png");
 
@@ -154,6 +155,7 @@ export default function IndexScreen() {
   // Retry handler with guard against concurrent taps (H3 fix)
   const handleRetry = useCallback(async () => {
     if (isNavigating) return;
+    impactMedium();
     setIsNavigating(true);
     setFetchFailed(false);
 

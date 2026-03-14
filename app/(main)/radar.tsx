@@ -27,7 +27,7 @@ import { getDistanceZone } from "@/types";
 import { logger } from "@/utils/logger";
 import { playWaveSent } from "@/utils/sound";
 import { useNoteResolver } from "@/hooks/useNoteResolver";
-import { seedFakePeers, clearFakePeers } from "@/utils/seedPeers";
+import { seedFakePeers, clearFakePeers, seedFakeMatches, triggerFakeMatch, clearFakeMatches } from "@/utils/seedPeers";
 import { getCurrentLocation, updateLocationOnServer } from "@/services/location";
 import { showPermissionBlockedAlert } from "@/services/ble/permissions";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
@@ -375,21 +375,43 @@ export default function RadarScreen() {
         </View>
       </View>
 
-      {/* DEV: Seed/clear fake peers for UI testing */}
+      {/* DEV: Seed/clear fake data for UI testing */}
       {__DEV__ && (
-        <View className="flex-row mb-2" style={{ gap: 8 }}>
-          <TouchableOpacity
-            onPress={() => { seedFakePeers(); useBleStore.getState().setDiscoveryActive(true); }}
-            className="bg-yellow-600/30 rounded-lg px-3 py-1.5"
-          >
-            <Text className="text-yellow-400 text-xs font-semibold">Seed Peers</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={clearFakePeers}
-            className="bg-red-600/30 rounded-lg px-3 py-1.5"
-          >
-            <Text className="text-red-400 text-xs font-semibold">Clear Peers</Text>
-          </TouchableOpacity>
+        <View className="mb-2" style={{ gap: 6 }}>
+          <View className="flex-row" style={{ gap: 8 }}>
+            <TouchableOpacity
+              onPress={() => { seedFakePeers(); useBleStore.getState().setDiscoveryActive(true); }}
+              className="bg-yellow-600/30 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-yellow-400 text-xs font-semibold">Seed Peers</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={clearFakePeers}
+              className="bg-red-600/30 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-red-400 text-xs font-semibold">Clear Peers</Text>
+            </TouchableOpacity>
+          </View>
+          <View className="flex-row" style={{ gap: 8 }}>
+            <TouchableOpacity
+              onPress={seedFakeMatches}
+              className="bg-pink-600/30 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-pink-400 text-xs font-semibold">Seed Matches</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={triggerFakeMatch}
+              className="bg-green-600/30 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-green-400 text-xs font-semibold">Trigger Match</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={clearFakeMatches}
+              className="bg-red-600/30 rounded-lg px-3 py-1.5"
+            >
+              <Text className="text-red-400 text-xs font-semibold">Clear Matches</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
 

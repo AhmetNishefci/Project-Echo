@@ -14,7 +14,7 @@ module.exports = {
           primary: "#6c63ff",
           accent: "#00d4aa",
           text: "#e0e0e0",
-          muted: "#666680",
+          muted: "#8585a0",
           danger: "#ff4757",
           wave: "#4ecdc4",
           match: "#ec4899",

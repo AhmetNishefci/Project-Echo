@@ -166,10 +166,17 @@ export default function MatchScreen() {
 
   return (
     <View className="flex-1 bg-wave-bg items-center justify-center px-8">
-      {/* Confetti */}
-      {confettiPieces.map((piece) => (
-        <ConfettiParticle key={piece.id} piece={piece} />
-      ))}
+      {/* Confetti — full screen overlay, hidden from accessibility tree */}
+      <View
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        {confettiPieces.map((piece) => (
+          <ConfettiParticle key={piece.id} piece={piece} />
+        ))}
+      </View>
 
       {/* Celebration visual */}
       <View className="w-32 h-32 rounded-full bg-wave-match/20 items-center justify-center mb-8">
@@ -218,13 +225,15 @@ export default function MatchScreen() {
         <Text className="text-wave-muted text-sm mb-6">No socials linked</Text>
       )}
 
-      {/* Action buttons */}
+      {/* Action buttons — when both exist, first is primary (filled), second is outline */}
       {hasAnyHandle && (
         <View className="w-full mb-4" style={{ gap: 10 }}>
           {igHandle && (
             <TouchableOpacity
               onPress={openInstagram}
               className="bg-wave-match py-4 rounded-2xl flex-row items-center justify-center"
+              accessibilityLabel={`Open Instagram @${igHandle}`}
+              accessibilityRole="button"
             >
               <Ionicons name="logo-instagram" size={20} color="white" style={{ marginRight: 8 }} />
               <Text className="text-white text-lg font-semibold">Open Instagram</Text>
@@ -233,10 +242,14 @@ export default function MatchScreen() {
           {scHandle && (
             <TouchableOpacity
               onPress={openSnapchat}
-              className="bg-yellow-400 py-4 rounded-2xl flex-row items-center justify-center"
+              className={`py-4 rounded-2xl flex-row items-center justify-center ${
+                igHandle ? "border border-yellow-400/60" : "bg-yellow-400"
+              }`}
+              accessibilityLabel={`Open Snapchat ${scHandle}`}
+              accessibilityRole="button"
             >
-              <Ionicons name="logo-snapchat" size={20} color="black" style={{ marginRight: 8 }} />
-              <Text className="text-black text-lg font-semibold">Open Snapchat</Text>
+              <Ionicons name="logo-snapchat" size={20} color={igHandle ? "#FFFC00" : "black"} style={{ marginRight: 8 }} />
+              <Text className={`text-lg font-semibold ${igHandle ? "text-yellow-400" : "text-black"}`}>Open Snapchat</Text>
             </TouchableOpacity>
           )}
         </View>

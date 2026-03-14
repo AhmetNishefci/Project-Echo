@@ -7,6 +7,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { saveNearbyAlertsPreference } from "@/services/profile";
 import { requestLocationPermission } from "@/services/location";
 import { impactMedium } from "@/utils/haptics";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 export default function NearbyAlertsScreen() {
   const router = useRouter();
@@ -34,7 +35,7 @@ export default function NearbyAlertsScreen() {
     if (!success) {
       setSaving(false);
       savingRef.current = false;
-      Alert.alert("Error", "Could not save your preference. Please try again.");
+      Alert.alert("Couldn't Save", "We had trouble saving your preference. Check your connection and try again.");
       return;
     }
 
@@ -70,6 +71,7 @@ export default function NearbyAlertsScreen() {
   const handleSkip = async () => {
     if (savingRef.current) return;
     savingRef.current = true;
+    impactMedium();
     setSaving(true);
 
     // Save as disabled — must succeed so the server records
@@ -79,7 +81,7 @@ export default function NearbyAlertsScreen() {
     if (!success) {
       setSaving(false);
       savingRef.current = false;
-      Alert.alert("Error", "Could not save your preference. Please try again.");
+      Alert.alert("Couldn't Save", "We had trouble saving your preference. Check your connection and try again.");
       return;
     }
 
@@ -95,6 +97,8 @@ export default function NearbyAlertsScreen() {
       className="flex-1 bg-wave-bg items-center justify-center px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
+      <OnboardingProgress step={5} />
+
       {/* Icon */}
       <View className="w-16 h-16 rounded-full bg-wave-primary/20 items-center justify-center mb-6 border-2 border-wave-primary/40">
         <Ionicons name="location-outline" size={32} color="#6c63ff" />

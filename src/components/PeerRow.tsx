@@ -1,8 +1,10 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, Pressable } from "react-native";
+import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from "react-native-reanimated";
 import { useWaveStore } from "@/stores/waveStore";
 import type { NearbyPeer } from "@/types";
-import { getAvatarForToken, getTimeSince } from "@/types";
+import { getAvatarForToken, getTimeSince, getDistanceZone } from "@/types";
+import { ZONE_CONFIG } from "@/constants/zones";
 import { WAVE_EXPIRY_MINUTES } from "@/services/ble/constants";
 
 const WAVE_EXPIRY_MS = WAVE_EXPIRY_MINUTES * 60 * 1_000;
@@ -34,6 +36,23 @@ export function PeerRow({
     [peer.ephemeralToken],
   );
   const freshness = getTimeSince(peer.lastSeen);
+  const zone = getDistanceZone(peer.rssi);
+  const displayName = peer.note || `Someone ${ZONE_CONFIG[zone].label.toLowerCase()}`;
+
+  // Wave send animation — brief scale pulse
+  const scale = useSharedValue(1);
+  const animatedRowStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handleWaveWithAnimation = useCallback((p: NearbyPeer) => {
+    scale.value = withSequence(
+      withTiming(0.95, { duration: 100 }),
+      withTiming(1.02, { duration: 150 }),
+      withTiming(1, { duration: 100 }),
+    );
+    onWave(p);
+  }, [onWave, scale]);
 
   // Auto-expire wave after 15 minutes — revert button to Wave
   useEffect(() => {
@@ -53,7 +72,8 @@ export function PeerRow({
   }, [wavePending, peer.ephemeralToken]);
 
   return (
-    <View
+    <Animated.View
+      style={animatedRowStyle}
       className={`py-3 px-4 mb-2 rounded-xl flex-row items-center ${
         isAlreadyMatched
           ? "bg-pink-500/10 border border-pink-500/20"
@@ -77,14 +97,14 @@ export function PeerRow({
         <View className="flex-1">
           <View className="flex-row items-center">
             <Text className="text-white text-base flex-shrink" numberOfLines={1}>
-              {peer.note || "Someone"}
+              {displayName}
             </Text>
             {isAlreadyMatched ? (
               <Text className="text-pink-400 text-xs ml-2">matched!</Text>
             ) : hasWavedAtMe ? (
               <Text className="text-green-400 text-xs ml-2">waved at you</Text>
             ) : wavePending ? (
-              <Text className="text-orange-400/60 text-xs ml-2">waiting for wave back</Text>
+              <Text className="text-orange-400 text-xs ml-2">waiting for wave back</Text>
             ) : null}
           </View>
           <Text className="text-wave-muted text-xs">{freshness}</Text>
@@ -110,7 +130,7 @@ export function PeerRow({
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
-          onPress={() => onWave(peer)}
+          onPress={() => handleWaveWithAnimation(peer)}
           disabled={isOffline}
           className={`rounded-lg px-3 py-1.5 ${
             isOffline
@@ -131,6 +151,6 @@ export function PeerRow({
           </Text>
         </TouchableOpacity>
       )}
-    </View>
+    </Animated.View>
   );
 }

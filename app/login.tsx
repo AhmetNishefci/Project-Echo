@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { signInWithGoogle } from "@/services/auth";
+import { signInWithGoogle, signInWithApple } from "@/services/auth";
 import { impactMedium } from "@/utils/haptics";
 
 const waveHand = require("../assets/wave-hand.png");
@@ -17,21 +17,21 @@ const STEPS = [
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(false);
+  const [loadingProvider, setLoadingProvider] = useState<"google" | "apple" | null>(null);
   const signingInRef = useRef(false);
 
-  const handleSignIn = async () => {
-    // Double-tap guard — GoogleSignin handles IN_PROGRESS but shows
-    // a confusing error alert without this (LP1 fix)
+  const handleSignIn = async (provider: "google" | "apple") => {
     if (signingInRef.current) return;
     signingInRef.current = true;
 
     impactMedium();
-    setLoading(true);
+    setLoadingProvider(provider);
 
-    const { success, error } = await signInWithGoogle();
+    const { success, error } = provider === "apple"
+      ? await signInWithApple()
+      : await signInWithGoogle();
 
-    setLoading(false);
+    setLoadingProvider(null);
     signingInRef.current = false;
 
     if (success) {
@@ -79,24 +79,44 @@ export default function LoginScreen() {
           ))}
         </View>
 
-        {/* Sign in button */}
-        <TouchableOpacity
-          onPress={handleSignIn}
-          disabled={loading}
-          className="w-full bg-wave-primary rounded-2xl py-4 flex-row items-center justify-center"
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" size="small" />
-          ) : (
-            <>
-              <Ionicons name="logo-google" size={20} color="white" style={{ marginRight: 8 }} />
-              <Text className="text-white text-base font-semibold">
-                Continue with Google
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Sign in buttons */}
+        <View className="w-full" style={{ gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => handleSignIn("apple")}
+            disabled={loadingProvider !== null}
+            className="w-full bg-white rounded-2xl py-4 flex-row items-center justify-center"
+            activeOpacity={0.8}
+          >
+            {loadingProvider === "apple" ? (
+              <ActivityIndicator color="black" size="small" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={20} color="black" style={{ marginRight: 8 }} />
+                <Text className="text-black text-base font-semibold">
+                  Continue with Apple
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => handleSignIn("google")}
+            disabled={loadingProvider !== null}
+            className="w-full bg-wave-surface rounded-2xl py-4 flex-row items-center justify-center border border-wave-muted/30"
+            activeOpacity={0.8}
+          >
+            {loadingProvider === "google" ? (
+              <ActivityIndicator color="white" size="small" />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={20} color="white" style={{ marginRight: 8 }} />
+                <Text className="text-white text-base font-semibold">
+                  Continue with Google
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
 
         <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
           Your identity stays hidden until a mutual match.

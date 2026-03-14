@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type RefObject } from "react";
+import type { TextInput as RNTextInput } from "react-native";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -6,6 +7,7 @@ import { useRouter } from "expo-router";
 import { saveInstagramHandle, saveSnapchatHandle } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium } from "@/utils/haptics";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -15,6 +17,7 @@ export default function OnboardingScreen() {
   const [scHandle, setScHandle] = useState("");
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
+  const snapchatInputRef = useRef<RNTextInput>(null);
 
   // Auth guard (H1 fix)
   useEffect(() => {
@@ -93,6 +96,8 @@ export default function OnboardingScreen() {
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
         keyboardShouldPersistTaps="handled"
       >
+        <OnboardingProgress step={3} />
+
         <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
           <Ionicons name="chatbubbles-outline" size={24} color="#6c63ff" />
         </View>
@@ -123,6 +128,7 @@ export default function OnboardingScreen() {
               className="flex-1 text-white text-base ml-1"
               style={{ lineHeight: 20, paddingVertical: 0 }}
               returnKeyType="next"
+              onSubmitEditing={() => snapchatInputRef.current?.focus()}
             />
           </View>
         </View>
@@ -135,6 +141,7 @@ export default function OnboardingScreen() {
           </View>
           <View className="w-full bg-wave-surface rounded-2xl px-4 flex-row items-center" style={{ height: 52 }}>
             <TextInput
+              ref={snapchatInputRef}
               value={scHandle}
               onChangeText={setScHandle}
               placeholder="username"

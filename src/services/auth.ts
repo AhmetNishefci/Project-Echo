@@ -76,6 +76,55 @@ export async function signInWithGoogle(): Promise<{
 }
 
 /**
+ * Sign in with Apple using the native iOS dialog.
+ * Gets an Apple identity token, then exchanges it for a Supabase session.
+ */
+export async function signInWithApple(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    logger.auth("Starting Apple Sign In");
+
+    const AppleAuthentication = require("expo-apple-authentication");
+
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    const identityToken = credential.identityToken;
+    if (!identityToken) {
+      logger.error("No identity token from Apple Sign In");
+      return { success: false, error: "No identity token received" };
+    }
+
+    logger.auth("Apple identity token received, signing in with Supabase...");
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: identityToken,
+    });
+
+    if (error) {
+      logger.error("Supabase signInWithIdToken (Apple) failed", error);
+      return { success: false, error: error.message };
+    }
+
+    logger.auth("Apple Sign In complete");
+    return { success: true };
+  } catch (err: any) {
+    if (err?.code === "ERR_REQUEST_CANCELED") {
+      return { success: false, error: "cancelled" };
+    }
+    logger.error("Apple sign-in error", err);
+    return { success: false, error: "Something went wrong" };
+  }
+}
+
+/**
  * Sign out of the current session.
  * Stops BLE, clears Google session, Supabase session, realtime
  * subscriptions, and all local stores.

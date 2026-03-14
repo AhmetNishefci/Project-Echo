@@ -408,10 +408,15 @@ export default function SettingsScreen() {
         </Text>
       </Section>
 
-      {/* Instagram */}
-      <Section title="Instagram">
+      {/* Socials */}
+      <Section title="Socials">
+        {/* Instagram */}
         {editingHandle ? (
-          <View>
+          <View className="mb-3">
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="logo-instagram" size={14} color="#6c63ff" />
+              <Text className="text-wave-muted text-xs ml-1.5">Instagram</Text>
+            </View>
             <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
               <Text className="text-wave-muted text-sm" style={{ lineHeight: 18 }}>@</Text>
               <TextInput
@@ -426,10 +431,11 @@ export default function SettingsScreen() {
                 style={{ lineHeight: 18, paddingVertical: 0 }}
                 autoFocus
                 returnKeyType="done"
+                maxLength={30}
                 onSubmitEditing={handleSaveHandle}
               />
             </View>
-            <View className="flex-row justify-end mt-3">
+            <View className="flex-row justify-end mt-2">
               <TouchableOpacity
                 onPress={() => {
                   setEditingHandle(false);
@@ -442,7 +448,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 onPress={handleSaveHandle}
                 disabled={savingHandle || !handleInput.trim()}
-                className="bg-wave-primary rounded-lg px-5 py-2"
+                className="bg-wave-primary rounded-lg px-4 py-2"
               >
                 {savingHandle ? (
                   <ActivityIndicator color="white" size="small" />
@@ -453,9 +459,12 @@ export default function SettingsScreen() {
             </View>
           </View>
         ) : (
-          <TouchableOpacity onPress={() => setEditingHandle(true)} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => setEditingHandle(true)} activeOpacity={0.7} className="mb-3">
             <View className="flex-row justify-between items-center py-1.5">
-              <Text className="text-wave-muted text-sm">Username</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="logo-instagram" size={16} color="#6c63ff" style={{ marginRight: 8 }} />
+                <Text className="text-wave-muted text-sm">Instagram</Text>
+              </View>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm font-mono mr-2">
                   {instagramHandle ? `@${instagramHandle}` : "Not set"}
@@ -465,15 +474,17 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         )}
-        <Text className="text-wave-muted text-xs mt-2 leading-4">
-          Shown to you and your match after a mutual wave.
-        </Text>
-      </Section>
 
-      {/* Snapchat */}
-      <Section title="Snapchat">
+        {/* Divider */}
+        <View className="h-px bg-wave-bg mb-3" />
+
+        {/* Snapchat */}
         {editingSnapchat ? (
           <View>
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="logo-snapchat" size={14} color="#FFFC00" />
+              <Text className="text-wave-muted text-xs ml-1.5">Snapchat</Text>
+            </View>
             <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
               <TextInput
                 value={snapchatInput}
@@ -487,10 +498,11 @@ export default function SettingsScreen() {
                 style={{ lineHeight: 18, paddingVertical: 0 }}
                 autoFocus
                 returnKeyType="done"
+                maxLength={15}
                 onSubmitEditing={handleSaveSnapchat}
               />
             </View>
-            <View className="flex-row justify-end mt-3">
+            <View className="flex-row justify-end mt-2">
               <TouchableOpacity
                 onPress={() => {
                   setEditingSnapchat(false);
@@ -503,7 +515,7 @@ export default function SettingsScreen() {
               <TouchableOpacity
                 onPress={handleSaveSnapchat}
                 disabled={savingSnapchat || !snapchatInput.trim()}
-                className="bg-wave-primary rounded-lg px-5 py-2"
+                className="bg-wave-primary rounded-lg px-4 py-2"
               >
                 {savingSnapchat ? (
                   <ActivityIndicator color="white" size="small" />
@@ -516,7 +528,10 @@ export default function SettingsScreen() {
         ) : (
           <TouchableOpacity onPress={() => setEditingSnapchat(true)} activeOpacity={0.7}>
             <View className="flex-row justify-between items-center py-1.5">
-              <Text className="text-wave-muted text-sm">Username</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="logo-snapchat" size={16} color="#FFFC00" style={{ marginRight: 8 }} />
+                <Text className="text-wave-muted text-sm">Snapchat</Text>
+              </View>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm font-mono mr-2">
                   {snapchatHandle || "Not set"}
@@ -526,8 +541,9 @@ export default function SettingsScreen() {
             </View>
           </TouchableOpacity>
         )}
-        <Text className="text-wave-muted text-xs mt-2 leading-4">
-          Shown to your match after a mutual wave.
+
+        <Text className="text-wave-muted text-xs mt-3 leading-4">
+          Your socials are shown to your match after a mutual wave.
         </Text>
       </Section>
 

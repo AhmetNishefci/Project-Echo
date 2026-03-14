@@ -12,9 +12,11 @@ interface ToastProps {
   durationMs?: number;
 }
 
+import { COLORS } from "@/constants/colors";
+
 const variantStyles: Record<ToastVariant, { bg: string; borderColor: string }> = {
-  success: { bg: "bg-green-900", borderColor: "#16a34a" },
-  error: { bg: "bg-red-900", borderColor: "#dc2626" },
+  success: { bg: "bg-green-900", borderColor: COLORS.toastSuccess },
+  error: { bg: "bg-red-900", borderColor: COLORS.toastError },
 };
 
 /**

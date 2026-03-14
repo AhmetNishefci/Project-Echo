@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { saveNote } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium } from "@/utils/haptics";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 const MAX_NOTE_LENGTH = 40;
 
@@ -30,7 +31,7 @@ export default function NoteScreen() {
 
     const trimmed = note.trim();
     if (!trimmed) {
-      // Treat empty as skip — explicitly set store note to null (L2 fix)
+      impactMedium();
       useAuthStore.getState().setNote(null);
       router.replace("/nearby-alerts");
       return;
@@ -66,6 +67,8 @@ export default function NoteScreen() {
         className="flex-1 items-center justify-center px-8"
         style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
       >
+        <OnboardingProgress step={4} />
+
         <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
           <Ionicons name="pencil-outline" size={24} color="#6c63ff" />
         </View>
@@ -110,7 +113,7 @@ export default function NoteScreen() {
           {saving ? (
             <ActivityIndicator color="white" size="small" />
           ) : (
-            <Text className="text-white text-base font-semibold">
+            <Text className={`text-base font-semibold ${note.trim() ? "text-white" : "text-wave-muted"}`}>
               {note.trim() ? "Continue" : "Skip for now"}
             </Text>
           )}

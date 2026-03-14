@@ -1,15 +1,13 @@
-import { View, Text, TouchableOpacity, Modal, Pressable } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
 import { useWaveStore } from "@/stores/waveStore";
-import type { NearbyPeer, DistanceZone } from "@/types";
+import { BottomSheet } from "@/components/BottomSheet";
+import { SocialActionRow } from "@/components/SocialActionRow";
+import { ZONE_CONFIG } from "@/constants/zones";
+import type { NearbyPeer } from "@/types";
 import { getDistanceZone, getSignalLabel, getAvatarForToken, getTimeSince } from "@/types";
-
-const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
-  HERE: { label: "Right Here", color: "text-green-400" },
-  CLOSE: { label: "Close By", color: "text-blue-400" },
-  NEARBY: { label: "Nearby", color: "text-wave-muted" },
-};
 
 export function PeerDetailModal({
   peer,
@@ -30,91 +28,84 @@ export function PeerDetailModal({
   const instagramHandle = matchedHandles?.instagram;
   const snapchatHandle = matchedHandles?.snapchat;
 
-  const openInstagram = () => instagramHandle && openInstagramProfile(instagramHandle);
-  const openSnapchat = () => snapchatHandle && openSnapchatProfile(snapchatHandle);
-
   return (
-    <Modal transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable onPress={onClose} className="flex-1 bg-black/60 justify-end">
-        <Pressable onPress={(e) => e.stopPropagation()} className="bg-wave-surface rounded-t-3xl px-6 pt-6 pb-10">
-          {/* Handle bar */}
-          <View className="w-10 h-1 rounded-full bg-wave-muted/40 self-center mb-5" />
-
-          {/* Avatar + Note */}
-          <View className="items-center mb-4">
-            <View
-              className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
-                isMatched ? "bg-pink-500/20 border-2 border-pink-500/40" : `${avatar.bg} border-2 ${avatar.ring}`
-              }`}
-            >
-              <Text className="text-2xl">{isMatched ? "✨" : avatar.emoji}</Text>
-            </View>
-            <Text className="text-white text-lg font-semibold text-center px-4">
-              {peer.note || "Someone"}
-            </Text>
-            {isMatched && (
-              <View className="bg-wave-match/20 rounded-full px-3 py-1 mt-2">
-                <Text className="text-wave-match text-xs font-semibold">Matched</Text>
-              </View>
-            )}
+    <BottomSheet visible onClose={onClose}>
+      {/* Avatar + Note */}
+      <View className="items-center mb-4">
+        <View
+          className={`w-14 h-14 rounded-full items-center justify-center mb-3 ${
+            isMatched ? "bg-pink-500/20 border-2 border-pink-500/40" : `${avatar.bg} border-2 ${avatar.ring}`
+          }`}
+        >
+          <Text className="text-2xl">{isMatched ? "✨" : avatar.emoji}</Text>
+        </View>
+        <Text className="text-white text-lg font-semibold text-center px-4">
+          {peer.note || "Someone"}
+        </Text>
+        {isMatched && (
+          <View className="bg-wave-match/20 rounded-full px-3 py-1 mt-2">
+            <Text className="text-wave-match text-xs font-semibold">Matched</Text>
           </View>
+        )}
+      </View>
 
-          {/* Contact handles (if matched) */}
-          {isMatched && (instagramHandle || snapchatHandle) && (
-            <View className="mb-4" style={{ gap: 8 }}>
-              {instagramHandle && (
-                <TouchableOpacity
-                  onPress={openInstagram}
-                  className="bg-wave-bg rounded-xl px-4 py-3 flex-row items-center justify-between"
-                >
-                  <Text className="text-wave-muted text-sm">Instagram</Text>
-                  <Text className="text-wave-accent text-sm font-semibold">@{instagramHandle}</Text>
-                </TouchableOpacity>
-              )}
-              {snapchatHandle && (
-                <TouchableOpacity
-                  onPress={openSnapchat}
-                  className="bg-wave-bg rounded-xl px-4 py-3 flex-row items-center justify-between"
-                >
-                  <Text className="text-wave-muted text-sm">Snapchat</Text>
-                  <Text className="text-wave-accent text-sm font-semibold">{snapchatHandle}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
+      {/* Contact actions (if matched) */}
+      {isMatched && (instagramHandle || snapchatHandle) && (
+        <View className="mb-4" style={{ gap: 8 }}>
+          {instagramHandle && (
+            <SocialActionRow
+              platform="instagram"
+              handle={instagramHandle}
+              onPress={() => openInstagramProfile(instagramHandle)}
+            />
           )}
-
-          {/* Details */}
-          <View className="bg-wave-bg rounded-xl px-4 py-3 mb-4">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-wave-muted text-sm">Distance</Text>
-              <Text className={`text-sm font-medium ${zoneColor}`}>{zoneLabel}</Text>
-            </View>
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-wave-muted text-sm">Signal</Text>
-              <Text className="text-white text-sm">{signal}</Text>
-            </View>
-            <View className="flex-row justify-between items-center">
-              <Text className="text-wave-muted text-sm">Last seen</Text>
-              <Text className="text-white text-sm">{freshness}</Text>
-            </View>
-          </View>
-
-          {/* View Matches (if matched) */}
-          {isMatched && (
-            <TouchableOpacity
-              onPress={() => { onClose(); router.push("/(main)/history"); }}
-              className="bg-wave-primary rounded-xl py-3 items-center mb-3"
-            >
-              <Text className="text-white text-sm font-semibold">View All Matches</Text>
-            </TouchableOpacity>
+          {snapchatHandle && (
+            <SocialActionRow
+              platform="snapchat"
+              handle={snapchatHandle}
+              onPress={() => openSnapchatProfile(snapchatHandle)}
+            />
           )}
+        </View>
+      )}
 
-          {/* Close */}
-          <TouchableOpacity onPress={onClose} className="bg-wave-bg rounded-xl py-3 items-center">
-            <Text className="text-white text-sm font-semibold">Close</Text>
-          </TouchableOpacity>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      {/* Details */}
+      <View className="bg-wave-bg rounded-xl px-4 py-3 mb-4">
+        <View className="flex-row justify-between items-center mb-2">
+          <Text className="text-wave-muted text-sm">Distance</Text>
+          <Text className={`text-sm font-medium ${zoneColor}`}>{zoneLabel}</Text>
+        </View>
+        <View className="flex-row justify-between items-center mb-2">
+          <Text className="text-wave-muted text-sm">Signal</Text>
+          <Text className="text-white text-sm">{signal}</Text>
+        </View>
+        <View className="flex-row justify-between items-center">
+          <Text className="text-wave-muted text-sm">Last seen</Text>
+          <Text className="text-white text-sm">{freshness}</Text>
+        </View>
+      </View>
+
+      {/* View Matches (if matched) */}
+      {isMatched && (
+        <TouchableOpacity
+          onPress={() => { onClose(); router.push("/(main)/history"); }}
+          className="bg-wave-primary rounded-xl py-3 items-center mb-3"
+          accessibilityLabel="View All Matches"
+          accessibilityRole="button"
+        >
+          <Text className="text-white text-sm font-semibold">View All Matches</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Close */}
+      <TouchableOpacity
+        onPress={onClose}
+        className="bg-wave-bg rounded-xl py-3 items-center"
+        accessibilityLabel="Close"
+        accessibilityRole="button"
+      >
+        <Text className="text-white text-sm font-semibold">Close</Text>
+      </TouchableOpacity>
+    </BottomSheet>
   );
 }

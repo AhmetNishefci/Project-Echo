@@ -151,6 +151,57 @@ export function seedFakePeers(): void {
 }
 
 /**
+ * DEV ONLY: Seed fake matches into waveStore for history screen testing.
+ * Creates a variety of matches: Instagram-only, Snapchat-only, both, and no socials.
+ */
+export function seedFakeMatches(): void {
+  const store = useWaveStore.getState();
+  const now = Date.now();
+
+  const fakeMatches = [
+    { matchId: "fake-match-001", matchedUserId: "fake-user-001", instagramHandle: "sarah.wave", snapchatHandle: "sarah_snap", createdAt: new Date(now - 1 * 60_000).toISOString(), seen: true },
+    { matchId: "fake-match-002", matchedUserId: "fake-user-002", instagramHandle: "alex.smith", snapchatHandle: undefined, createdAt: new Date(now - 30 * 60_000).toISOString(), seen: true },
+    { matchId: "fake-match-003", matchedUserId: "fake-user-003", instagramHandle: undefined, snapchatHandle: "mia_vibes", createdAt: new Date(now - 2 * 3600_000).toISOString(), seen: true },
+    { matchId: "fake-match-004", matchedUserId: "fake-user-004", instagramHandle: "emma.w", snapchatHandle: "emma_snap22", createdAt: new Date(now - 5 * 3600_000).toISOString(), seen: false },
+    { matchId: "fake-match-005", matchedUserId: "fake-user-005", instagramHandle: "jake_adventures", snapchatHandle: undefined, createdAt: new Date(now - 24 * 3600_000).toISOString(), seen: true },
+    { matchId: "fake-match-006", matchedUserId: "fake-user-006", instagramHandle: undefined, snapchatHandle: "olivia.sc", createdAt: new Date(now - 25 * 3600_000).toISOString(), seen: true },
+    { matchId: "fake-match-007", matchedUserId: "fake-user-007", instagramHandle: "marco.polo", snapchatHandle: "marco_s", createdAt: new Date(now - 48 * 3600_000).toISOString(), seen: true },
+    { matchId: "fake-match-008", matchedUserId: "fake-user-008", instagramHandle: undefined, snapchatHandle: undefined, createdAt: new Date(now - 72 * 3600_000).toISOString(), seen: true },
+    { matchId: "fake-match-009", matchedUserId: "fake-user-009", instagramHandle: "lily.green", snapchatHandle: "lily_g", createdAt: new Date(now - 96 * 3600_000).toISOString(), seen: true },
+    { matchId: "fake-match-010", matchedUserId: "fake-user-010", instagramHandle: "dan.the.man", snapchatHandle: undefined, createdAt: new Date(now - 120 * 3600_000).toISOString(), seen: true },
+  ];
+
+  for (const match of fakeMatches) {
+    store.addMatch(match);
+  }
+}
+
+/**
+ * DEV ONLY: Trigger the match celebration screen with a fake match.
+ * Creates an unseen match which MainLayout detects and navigates to /(main)/match.
+ */
+export function triggerFakeMatch(): void {
+  const store = useWaveStore.getState();
+  const id = `fake-match-live-${Date.now()}`;
+
+  store.addMatch({
+    matchId: id,
+    matchedUserId: "fake-user-live",
+    instagramHandle: "wave.tester",
+    snapchatHandle: "wave_tester_sc",
+    createdAt: new Date().toISOString(),
+    seen: false,
+  });
+}
+
+/**
+ * DEV ONLY: Clear all fake matches.
+ */
+export function clearFakeMatches(): void {
+  useWaveStore.getState().clearMatches();
+}
+
+/**
  * DEV ONLY: Clear all fake peers.
  */
 export function clearFakePeers(): void {

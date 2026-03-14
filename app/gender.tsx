@@ -7,6 +7,7 @@ import { saveGenderProfile } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium, impactLight } from "@/utils/haptics";
 import { AgeRangeSlider } from "@/components/AgeRangeSlider";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 import { getAgeFromDob, getDefaultAgeRange } from "@/utils/age";
 import type { Gender, GenderPreference } from "@/types";
 
@@ -70,7 +71,7 @@ export default function GenderScreen() {
     savingRef.current = false;
 
     if (!success) {
-      Alert.alert("Error", "Could not save your profile. Please try again.");
+      Alert.alert("Couldn't Save", "We had trouble saving your profile. Check your connection and try again.");
       return;
     }
 
@@ -98,6 +99,8 @@ export default function GenderScreen() {
       }}
       keyboardShouldPersistTaps="handled"
     >
+      <OnboardingProgress step={2} />
+
       {/* Icon */}
       <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
         <Ionicons name="person-outline" size={24} color="#6c63ff" />
@@ -213,7 +216,7 @@ export default function GenderScreen() {
       </TouchableOpacity>
 
       <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
-        You can change your discovery preferences later in settings.
+        Your gender cannot be changed later.{"\n"}Discovery preferences can be updated in settings.
       </Text>
     </ScrollView>
   );

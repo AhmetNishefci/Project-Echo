@@ -21,6 +21,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     appleTeamId: "MC275WP2T8",
     entitlements: {
       "aps-environment": "development",
+      "com.apple.developer.applesignin": ["Default"],
     },
     infoPlist: {
       NSBluetoothAlwaysUsageDescription:
@@ -57,6 +58,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     "expo-router",
     "expo-web-browser",
+    "expo-apple-authentication",
     [
       "@react-native-google-signin/google-signin",
       {

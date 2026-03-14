@@ -8,6 +8,7 @@ import { saveDateOfBirth } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium } from "@/utils/haptics";
 import { isAtLeastAge } from "@/utils/age";
+import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 export default function BirthdayScreen() {
   const router = useRouter();
@@ -69,7 +70,7 @@ export default function BirthdayScreen() {
     savingRef.current = false;
 
     if (!success) {
-      Alert.alert("Error", "Could not save your date of birth. Please try again.");
+      Alert.alert("Couldn't Save", "We had trouble saving your birthday. Check your connection and try again.");
       return;
     }
 
@@ -82,6 +83,8 @@ export default function BirthdayScreen() {
       className="flex-1 bg-wave-bg items-center justify-center px-8"
       style={{ paddingTop: insets.top, paddingBottom: insets.bottom }}
     >
+      <OnboardingProgress step={1} />
+
       {/* Icon */}
       <View className="w-12 h-12 rounded-full bg-wave-surface items-center justify-center mb-6">
         <Ionicons name="calendar-outline" size={24} color="#6c63ff" />

@@ -1,20 +1,34 @@
-import { View, Text, SectionList, TouchableOpacity, Share, Alert, ActionSheetIOS, Platform, ActivityIndicator, Linking } from "react-native";
+import { View, Text, SectionList, TouchableOpacity, Share, Alert, ActivityIndicator, Linking, RefreshControl } from "react-native";
 import { useMemo, useEffect, useRef, useCallback, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import { useWaveStore } from "@/stores/waveStore";
 import { removeMatchFromServer } from "@/services/wave/waves";
-import { loadMoreMatches } from "@/services/wave/matches";
+import { fetchMatchesFromServer, loadMoreMatches } from "@/services/wave/matches";
 import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
+import { BottomSheet } from "@/components/BottomSheet";
+import { SocialActionRow } from "@/components/SocialActionRow";
+import { COLORS } from "@/constants/colors";
 import type { Match } from "@/types";
 
-/** Group matches by date (Today, Yesterday, Earlier) */
+/** Group matches by date with meaningful time buckets */
 function groupByDate(matches: Match[]) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const yesterday = new Date(today.getTime() - 86_400_000);
 
+  // Start of this week (Monday)
+  const dayOfWeek = now.getDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  const thisWeekStart = new Date(today.getTime() - daysToMonday * 86_400_000);
+
+  // Start of last week
+  const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 86_400_000);
+
   const groups: { title: string; data: Match[] }[] = [
     { title: "Today", data: [] },
     { title: "Yesterday", data: [] },
+    { title: "This Week", data: [] },
+    { title: "Last Week", data: [] },
     { title: "Earlier", data: [] },
   ];
 
@@ -29,8 +43,12 @@ function groupByDate(matches: Match[]) {
       groups[0].data.push(match);
     } else if (d >= yesterday) {
       groups[1].data.push(match);
-    } else {
+    } else if (d >= thisWeekStart) {
       groups[2].data.push(match);
+    } else if (d >= lastWeekStart) {
+      groups[3].data.push(match);
+    } else {
+      groups[4].data.push(match);
     }
   }
 
@@ -41,8 +59,16 @@ export default function HistoryScreen() {
   const matches = useWaveStore((s) => s.matches);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const sections = useMemo(() => groupByDate(matches), [matches]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchMatchesFromServer();
+    setRefreshing(false);
+  }, []);
 
   const handleLoadMore = useCallback(async () => {
     if (loadingMore || !hasMore || matches.length === 0) return;
@@ -135,9 +161,18 @@ export default function HistoryScreen() {
               {section.title}
             </Text>
           )}
-          renderItem={({ item }) => <MatchRow match={item} />}
+          renderItem={({ item }) => (
+            <MatchRow match={item} onPress={setSelectedMatch} />
+          )}
           contentContainerStyle={{ paddingBottom: 100 }}
           stickySectionHeadersEnabled={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#6c63ff"
+            />
+          }
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
           ListFooterComponent={
@@ -149,11 +184,27 @@ export default function HistoryScreen() {
           }
         />
       )}
+
+      {/* Match action sheet */}
+      {selectedMatch && (
+        <MatchActionSheet
+          match={selectedMatch}
+          onClose={() => setSelectedMatch(null)}
+        />
+      )}
     </View>
   );
 }
 
-function MatchRow({ match }: { match: Match }) {
+/* ─── Match Row ─────────────────────────────────────────────── */
+
+function MatchRow({
+  match,
+  onPress,
+}: {
+  match: Match;
+  onPress: (match: Match) => void;
+}) {
   const time = new Date(match.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -162,82 +213,11 @@ function MatchRow({ match }: { match: Match }) {
   const igHandle = match.instagramHandle;
   const scHandle = match.snapchatHandle;
   const hasHandle = !!igHandle || !!scHandle;
-  // Display name: prefer Instagram, fallback to Snapchat
   const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : null;
-
-  const openPrimaryContact = useCallback(() => {
-    if (igHandle) openInstagramProfile(igHandle);
-    else if (scHandle) openSnapchatProfile(scHandle);
-  }, [igHandle, scHandle]);
-
-  const handleRemove = useCallback(() => {
-    Alert.alert(
-      "Remove Match",
-      displayName
-        ? `Remove ${displayName}? This removes the match for both of you.`
-        : "Remove this match? This removes it for both of you.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Remove",
-          style: "destructive",
-          onPress: async () => {
-            const success = await removeMatchFromServer(match.matchId);
-            if (!success) {
-              Alert.alert("Error", "Could not remove the match. Try again.");
-            }
-          },
-        },
-      ],
-    );
-  }, [match.matchId, displayName]);
-
-  const handleReport = useCallback(() => {
-    Linking.openURL(
-      `mailto:support@wave-app.com?subject=Report%20User&body=Match%20ID:%20${match.matchId}%0APlease%20describe%20the%20issue:%0A`,
-    );
-  }, [match.matchId]);
-
-  const showActions = useCallback(() => {
-    if (Platform.OS === "ios") {
-      const options: string[] = [];
-      if (igHandle) options.push("Open Instagram");
-      if (scHandle) options.push("Open Snapchat");
-      options.push("Remove Match", "Report User", "Cancel");
-
-      const cancelIndex = options.length - 1;
-      const destructiveIndex = options.indexOf("Remove Match");
-
-      ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex, destructiveButtonIndex: destructiveIndex },
-        (index) => {
-          const selected = options[index];
-          if (selected === "Open Instagram" && igHandle) {
-            openInstagramProfile(igHandle);
-          } else if (selected === "Open Snapchat" && scHandle) {
-            openSnapchatProfile(scHandle);
-          } else if (selected === "Remove Match") {
-            handleRemove();
-          } else if (selected === "Report User") {
-            handleReport();
-          }
-        },
-      );
-    } else {
-      Alert.alert("Match Options", undefined, [
-        ...(igHandle ? [{ text: "Open Instagram", onPress: () => openInstagramProfile(igHandle) }] : []),
-        ...(scHandle ? [{ text: "Open Snapchat", onPress: () => openSnapchatProfile(scHandle) }] : []),
-        { text: "Remove Match", style: "destructive" as const, onPress: () => handleRemove() },
-        { text: "Report User", onPress: handleReport },
-        { text: "Cancel", style: "cancel" as const },
-      ]);
-    }
-  }, [igHandle, scHandle, handleRemove, handleReport]);
 
   return (
     <TouchableOpacity
-      onPress={hasHandle ? openPrimaryContact : showActions}
-      onLongPress={showActions}
+      onPress={() => onPress(match)}
       activeOpacity={0.7}
       className="bg-wave-surface rounded-2xl p-4 mb-3 flex-row items-center"
     >
@@ -271,13 +251,112 @@ function MatchRow({ match }: { match: Match }) {
 
       {/* Platform indicators or unseen dot */}
       {hasHandle ? (
-        <View className="flex-row items-center" style={{ gap: 4 }}>
-          {igHandle && <Text className="text-xs">📸</Text>}
-          {scHandle && <Text className="text-xs">👻</Text>}
+        <View className="flex-row items-center" style={{ gap: 6 }}>
+          {igHandle && <Ionicons name="logo-instagram" size={16} color="#6c63ff" />}
+          {scHandle && <Ionicons name="logo-snapchat" size={16} color="#FFFC00" />}
         </View>
       ) : !match.seen ? (
         <View className="w-3 h-3 rounded-full bg-wave-match" />
       ) : null}
     </TouchableOpacity>
+  );
+}
+
+/* ─── Match Action Sheet (Modal) ────────────────────────────── */
+
+function MatchActionSheet({
+  match,
+  onClose,
+}: {
+  match: Match;
+  onClose: () => void;
+}) {
+  const igHandle = match.instagramHandle;
+  const scHandle = match.snapchatHandle;
+  const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : "Someone nearby";
+
+  const handleRemove = () => {
+    onClose();
+    Alert.alert(
+      "Remove Match",
+      `Remove ${displayName}? This removes the match for both of you.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            const success = await removeMatchFromServer(match.matchId);
+            if (!success) {
+              Alert.alert("Error", "Could not remove the match. Try again.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleReport = () => {
+    onClose();
+    Linking.openURL(
+      `mailto:support@wave-app.com?subject=Report%20User&body=Match%20ID:%20${match.matchId}%0APlease%20describe%20the%20issue:%0A`,
+    );
+  };
+
+  return (
+    <BottomSheet visible onClose={onClose}>
+      {/* Match info */}
+      <View className="items-center mb-5">
+        <View className="w-14 h-14 rounded-full bg-wave-match/20 items-center justify-center mb-3">
+          <Text className="text-2xl">🤝</Text>
+        </View>
+        <Text className="text-white text-lg font-semibold">{displayName}</Text>
+      </View>
+
+      {/* Contact options */}
+      <View style={{ gap: 8 }}>
+        {igHandle && (
+          <SocialActionRow
+            platform="instagram"
+            handle={igHandle}
+            onPress={() => { onClose(); openInstagramProfile(igHandle); }}
+          />
+        )}
+        {scHandle && (
+          <SocialActionRow
+            platform="snapchat"
+            handle={scHandle}
+            onPress={() => { onClose(); openSnapchatProfile(scHandle); }}
+          />
+        )}
+      </View>
+
+      {/* Divider */}
+      <View className="h-px bg-wave-muted/20 my-3" />
+
+      {/* Remove */}
+      <TouchableOpacity
+        onPress={handleRemove}
+        className="bg-wave-bg rounded-xl py-3.5 px-4 mb-2 flex-row items-center"
+        activeOpacity={0.7}
+        accessibilityLabel="Remove Match"
+        accessibilityRole="button"
+      >
+        <Ionicons name="trash-outline" size={20} color={COLORS.danger} style={{ marginRight: 12 }} />
+        <Text className="text-wave-danger text-sm font-semibold">Remove Match</Text>
+      </TouchableOpacity>
+
+      {/* Report */}
+      <TouchableOpacity
+        onPress={handleReport}
+        className="bg-wave-bg rounded-xl py-3.5 px-4 mb-2 flex-row items-center"
+        activeOpacity={0.7}
+        accessibilityLabel="Report User"
+        accessibilityRole="button"
+      >
+        <Ionicons name="flag-outline" size={20} color={COLORS.text} style={{ marginRight: 12 }} />
+        <Text className="text-wave-text text-sm font-semibold">Report User</Text>
+      </TouchableOpacity>
+    </BottomSheet>
   );
 }

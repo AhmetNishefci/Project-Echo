@@ -4,27 +4,22 @@ import { Ionicons } from "@expo/vector-icons";
 import ViewShot from "react-native-view-shot";
 import { impactMedium } from "@/utils/haptics";
 import { COLORS } from "@/constants/colors";
-import { getIcebreakerForMatch } from "@/constants/icebreakers";
 import { logger } from "@/utils/logger";
 
 const waveHand = require("../../assets/wave-hand.png");
 
-interface MatchShareCardProps {
-  matchId: string;
-}
-
 /**
  * "Share Match" button + hidden card that captures a branded image
  * for sharing to Instagram/Snapchat stories. The card is rendered
- * off-screen, captured as a PNG, then shared via the native share sheet.
+ * invisible but in the layout tree (so images load), captured as a
+ * PNG, then shared via the native share sheet.
  *
  * The card is intentionally generic — no handles or usernames to
  * protect the privacy of both users.
  */
-export function MatchShareCard({ matchId }: MatchShareCardProps) {
+export function MatchShareCard() {
   const viewShotRef = useRef<ViewShot>(null);
   const [sharing, setSharing] = useState(false);
-  const icebreaker = getIcebreakerForMatch(matchId);
 
   const handleShare = useCallback(async () => {
     if (sharing) return;
@@ -57,7 +52,7 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
         disabled={sharing}
         className="flex-row items-center justify-center py-3"
         activeOpacity={0.7}
-        accessibilityLabel="Share match to story"
+        accessibilityLabel="Share match"
         accessibilityRole="button"
       >
         {sharing ? (
@@ -65,13 +60,13 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
         ) : (
           <>
             <Ionicons name="share-outline" size={16} color={COLORS.muted} style={{ marginRight: 6 }} />
-            <Text className="text-wave-muted text-sm font-semibold">Share to Story</Text>
+            <Text className="text-wave-muted text-sm font-semibold">Share Match</Text>
           </>
         )}
       </TouchableOpacity>
 
-      {/* Card — rendered off-screen, captured as image */}
-      <View style={{ position: "absolute", left: -9999, top: -9999 }}>
+      {/* Card — rendered invisible but in layout tree so images load */}
+      <View style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}>
         <ViewShot
           ref={viewShotRef}
           options={{ format: "png", quality: 1, width: 1080, height: 1920 }}
@@ -86,22 +81,22 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
               padding: 80,
             }}
           >
-            {/* Glow */}
+            {/* Ambient glow */}
             <View
               style={{
                 position: "absolute",
-                width: 400,
-                height: 400,
-                borderRadius: 200,
+                width: 900,
+                height: 900,
+                borderRadius: 450,
                 backgroundColor: COLORS.primary,
-                opacity: 0.08,
+                opacity: 0.04,
               }}
             />
 
-            {/* Wave hand */}
+            {/* Wave hand logo */}
             <Image
               source={waveHand}
-              style={{ width: 240, height: 240, marginBottom: 60 }}
+              style={{ width: 220, height: 220, marginBottom: 56 }}
               resizeMode="contain"
             />
 
@@ -109,7 +104,7 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
             <Text
               style={{
                 color: "#ffffff",
-                fontSize: 72,
+                fontSize: 80,
                 fontWeight: "800",
                 textAlign: "center",
                 marginBottom: 24,
@@ -124,46 +119,20 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
                 color: COLORS.muted,
                 fontSize: 36,
                 textAlign: "center",
-                marginBottom: 80,
                 lineHeight: 52,
-                paddingHorizontal: 40,
+                marginBottom: 120,
               }}
             >
-              We both waved at each other on Wave 👋
+              We waved at each other 👋
             </Text>
-
-            {/* Ice-breaker */}
-            <View
-              style={{
-                backgroundColor: "rgba(108, 99, 255, 0.1)",
-                borderRadius: 32,
-                paddingHorizontal: 48,
-                paddingVertical: 32,
-                borderWidth: 2,
-                borderColor: "rgba(108, 99, 255, 0.2)",
-                marginBottom: 80,
-              }}
-            >
-              <Text
-                style={{
-                  color: "#ffffff",
-                  fontSize: 30,
-                  textAlign: "center",
-                  fontStyle: "italic",
-                  lineHeight: 44,
-                }}
-              >
-                "{icebreaker}"
-              </Text>
-            </View>
 
             {/* Branding */}
             <Text
               style={{
                 color: COLORS.primary,
-                fontSize: 42,
-                fontWeight: "700",
-                letterSpacing: 2,
+                fontSize: 48,
+                fontWeight: "800",
+                letterSpacing: 4,
               }}
             >
               WAVE
@@ -171,8 +140,8 @@ export function MatchShareCard({ matchId }: MatchShareCardProps) {
             <Text
               style={{
                 color: COLORS.muted,
-                fontSize: 24,
-                marginTop: 12,
+                fontSize: 26,
+                marginTop: 16,
               }}
             >
               Connect with people nearby

@@ -273,7 +273,7 @@ export default function MatchScreen() {
       </TouchableOpacity>
 
       {/* Share to story */}
-      {displayMatch && <MatchShareCard matchId={displayMatch.matchId} />}
+      {displayMatch && <MatchShareCard />}
     </View>
   );
 }

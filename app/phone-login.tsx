@@ -257,6 +257,7 @@ export default function PhoneLoginScreen() {
                   placeholder="000000"
                   placeholderTextColor={COLORS.placeholder}
                   keyboardType="number-pad"
+                  textContentType="oneTimeCode"
                   maxLength={OTP_LENGTH}
                   className="text-white text-2xl font-bold text-center flex-1"
                   style={{ letterSpacing: 12, paddingVertical: 0 }}

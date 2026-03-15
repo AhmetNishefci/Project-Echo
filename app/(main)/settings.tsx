@@ -30,6 +30,7 @@ export default function SettingsScreen() {
   const userEmail = rawEmail?.includes("privaterelay.appleid.com")
     ? "Hidden (Apple)"
     : rawEmail;
+  const userPhone = session?.user?.phone ?? null;
   const router = useRouter();
 
   const [deleting, setDeleting] = useState(false);
@@ -285,6 +286,9 @@ export default function SettingsScreen() {
       <Section title="Account">
         {userEmail && (
           <InfoRow label="Email" value={userEmail} />
+        )}
+        {userPhone && (
+          <InfoRow label="Phone" value={userPhone} />
         )}
         {gender && (
           <InfoRow label="Gender" value={gender === "male" ? "Male" : "Female"} />

@@ -8,7 +8,7 @@ import { logger } from "@/utils/logger";
 import { isAtLeastAge } from "@/utils/age";
 import { impactMedium } from "@/utils/haptics";
 
-const appIcon = require("../assets/icon.png");
+const waveHand = require("../assets/wave-hand.png");
 
 const MAX_PROFILE_RETRIES = 3;
 
@@ -180,8 +180,8 @@ export default function IndexScreen() {
   return (
     <View className="flex-1 items-center justify-center bg-wave-bg">
       <Image
-        source={appIcon}
-        className="w-20 h-20 rounded-2xl mb-5"
+        source={waveHand}
+        style={{ width: 80, height: 80 }}
         resizeMode="contain"
       />
       <Text className="text-4xl font-bold text-white mb-6">Wave</Text>

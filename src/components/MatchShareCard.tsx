@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from "react";
 import { View, Text, Image, TouchableOpacity, ActivityIndicator, Share, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import ViewShot from "react-native-view-shot";
 import { impactMedium } from "@/utils/haptics";
 import { COLORS } from "@/constants/colors";
@@ -18,6 +19,7 @@ const waveHand = require("../../assets/wave-hand.png");
  * protect the privacy of both users.
  */
 export function MatchShareCard() {
+  const { t } = useTranslation();
   const viewShotRef = useRef<ViewShot>(null);
   const [sharing, setSharing] = useState(false);
 
@@ -60,7 +62,7 @@ export function MatchShareCard() {
         ) : (
           <>
             <Ionicons name="share-outline" size={16} color={COLORS.muted} style={{ marginRight: 6 }} />
-            <Text className="text-wave-muted text-sm font-semibold">Share Match</Text>
+            <Text className="text-wave-muted text-sm font-semibold">{t("match.shareMatch")}</Text>
           </>
         )}
       </TouchableOpacity>
@@ -110,7 +112,7 @@ export function MatchShareCard() {
                 marginBottom: 24,
               }}
             >
-              It's a Match!
+              {t("shareCard.title")}
             </Text>
 
             {/* Subtitle */}
@@ -123,7 +125,7 @@ export function MatchShareCard() {
                 marginBottom: 120,
               }}
             >
-              We waved at each other 👋
+              {t("shareCard.subtitle")}
             </Text>
 
             {/* Branding */}
@@ -135,7 +137,7 @@ export function MatchShareCard() {
                 letterSpacing: 4,
               }}
             >
-              WAVE
+              {t("shareCard.brand")}
             </Text>
             <Text
               style={{
@@ -144,7 +146,7 @@ export function MatchShareCard() {
                 marginTop: 16,
               }}
             >
-              Connect with people nearby
+              {t("shareCard.tagline")}
             </Text>
           </View>
         </ViewShot>

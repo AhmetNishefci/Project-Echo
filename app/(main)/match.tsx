@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, Dimensions, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import Animated, {
   useSharedValue,
@@ -40,6 +41,7 @@ interface ConfettiPiece {
 }
 
 export default function MatchScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const latestUnseenMatch = useWaveStore((s) => s.latestUnseenMatch);
   const markMatchSeen = useWaveStore((s) => s.markMatchSeen);
@@ -152,8 +154,8 @@ export default function MatchScreen() {
 
   const milestone = MATCH_MILESTONES.includes(matchCount)
     ? matchCount === 1
-      ? "Your first match!"
-      : `${matchCount} matches!`
+      ? t("match.firstMatch")
+      : t("match.matchCount", { count: matchCount })
     : null;
 
   if (!displayMatch) return null;
@@ -192,9 +194,9 @@ export default function MatchScreen() {
       </View>
 
       {/* Match text */}
-      <Text className="text-4xl font-bold text-white mb-2">It's a Match!</Text>
+      <Text className="text-4xl font-bold text-white mb-2">{t("match.title")}</Text>
       <Text className="text-wave-muted text-center text-base mb-4">
-        You both waved at each other
+        {t("match.subtitle")}
       </Text>
 
       {/* Milestone badge */}
@@ -223,10 +225,10 @@ export default function MatchScreen() {
       ) : handleLoading ? (
         <View className="mb-6 flex-row items-center">
           <ActivityIndicator size="small" color="#666680" />
-          <Text className="text-wave-muted text-sm ml-2">Loading socials...</Text>
+          <Text className="text-wave-muted text-sm ml-2">{t("match.loadingSocials")}</Text>
         </View>
       ) : (
-        <Text className="text-wave-muted text-sm mb-6">No socials linked</Text>
+        <Text className="text-wave-muted text-sm mb-6">{t("match.noSocials")}</Text>
       )}
 
       {/* Ice-breaker — tap to copy conversation starter */}
@@ -241,11 +243,11 @@ export default function MatchScreen() {
             <TouchableOpacity
               onPress={openInstagram}
               className="bg-wave-match py-4 rounded-2xl flex-row items-center justify-center"
-              accessibilityLabel={`Open Instagram @${igHandle}`}
+              accessibilityLabel={t("match.openInstagramLabel", { handle: igHandle })}
               accessibilityRole="button"
             >
               <Ionicons name="logo-instagram" size={20} color="white" style={{ marginRight: 8 }} />
-              <Text className="text-white text-lg font-semibold">Open Instagram</Text>
+              <Text className="text-white text-lg font-semibold">{t("match.openInstagram")}</Text>
             </TouchableOpacity>
           )}
           {scHandle && (
@@ -254,11 +256,11 @@ export default function MatchScreen() {
               className={`py-4 rounded-2xl flex-row items-center justify-center ${
                 igHandle ? "border border-yellow-400/60" : "bg-yellow-400"
               }`}
-              accessibilityLabel={`Open Snapchat ${scHandle}`}
+              accessibilityLabel={t("match.openSnapchatLabel", { handle: scHandle })}
               accessibilityRole="button"
             >
               <Ionicons name="logo-snapchat" size={20} color={igHandle ? "#FFFC00" : "black"} style={{ marginRight: 8 }} />
-              <Text className={`text-lg font-semibold ${igHandle ? "text-yellow-400" : "text-black"}`}>Open Snapchat</Text>
+              <Text className={`text-lg font-semibold ${igHandle ? "text-yellow-400" : "text-black"}`}>{t("match.openSnapchat")}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -269,7 +271,7 @@ export default function MatchScreen() {
         onPress={handleDismiss}
         className={`w-full py-4 rounded-2xl items-center ${hasAnyHandle ? "bg-wave-surface" : "bg-wave-primary"}`}
       >
-        <Text className="text-white text-lg font-semibold">Back to Radar</Text>
+        <Text className="text-white text-lg font-semibold">{t("match.backToRadar")}</Text>
       </TouchableOpacity>
 
       {/* Share to story */}
@@ -281,6 +283,7 @@ export default function MatchScreen() {
 /* ─── Ice-breaker Prompt ───────────────────────────────────── */
 
 function IcebreakerPrompt({ matchId }: { matchId: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const prompt = useMemo(() => getIcebreakerForMatch(matchId), [matchId]);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -309,11 +312,11 @@ function IcebreakerPrompt({ matchId }: { matchId: string }) {
       onPress={handleCopy}
       className="w-full bg-wave-surface/60 border border-wave-muted/20 rounded-2xl px-5 py-4 mb-6"
       activeOpacity={0.7}
-      accessibilityLabel={`Copy ice-breaker: ${prompt}`}
+      accessibilityLabel={t("match.copyIcebreaker", { prompt })}
       accessibilityRole="button"
     >
       <Text className="text-wave-muted text-xs font-semibold uppercase tracking-wider mb-2">
-        Start your DM with
+        {t("match.startDm")}
       </Text>
       <Text className="text-white text-base leading-6 mb-3">
         "{prompt}"
@@ -326,7 +329,7 @@ function IcebreakerPrompt({ matchId }: { matchId: string }) {
           style={{ marginRight: 4 }}
         />
         <Text className={`text-xs font-semibold ${copied ? "text-wave-accent" : "text-wave-muted"}`}>
-          {copied ? "Copied!" : "Tap to copy"}
+          {copied ? t("match.copied") : t("match.tapToCopy")}
         </Text>
       </View>
     </TouchableOpacity>

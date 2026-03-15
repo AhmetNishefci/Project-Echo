@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useCallback } from "react";
 import { View, Text, TouchableOpacity, Pressable } from "react-native";
 import Animated, { useSharedValue, useAnimatedStyle, withSequence, withTiming } from "react-native-reanimated";
+import { useTranslation } from "react-i18next";
 import { useWaveStore } from "@/stores/waveStore";
 import type { NearbyPeer } from "@/types";
 import { getAvatarForToken, getTimeSince, getDistanceZone } from "@/types";
@@ -22,6 +23,7 @@ export function PeerRow({
   onPress: (p: NearbyPeer) => void;
   isOffline: boolean;
 }) {
+  const { t } = useTranslation();
   const wavePending = useWaveStore(
     (s) => s.pendingWaves.get(peer.ephemeralToken) ?? null,
   );
@@ -37,7 +39,7 @@ export function PeerRow({
   );
   const freshness = getTimeSince(peer.lastSeen);
   const zone = getDistanceZone(peer.rssi);
-  const displayName = peer.note || `Someone ${ZONE_CONFIG[zone].label.toLowerCase()}`;
+  const displayName = peer.note || t("peerRow.someone", { zone: ZONE_CONFIG[zone].label.toLowerCase() });
 
   // Wave send animation — brief scale pulse
   const scale = useSharedValue(1);
@@ -100,11 +102,11 @@ export function PeerRow({
               {displayName}
             </Text>
             {isAlreadyMatched ? (
-              <Text className="text-pink-400 text-xs ml-2">matched!</Text>
+              <Text className="text-pink-400 text-xs ml-2">{t("peerRow.matched")}</Text>
             ) : hasWavedAtMe ? (
-              <Text className="text-green-400 text-xs ml-2">waved at you</Text>
+              <Text className="text-green-400 text-xs ml-2">{t("peerRow.wavedAtYou")}</Text>
             ) : wavePending ? (
-              <Text className="text-orange-400 text-xs ml-2">waiting for wave back</Text>
+              <Text className="text-orange-400 text-xs ml-2">{t("peerRow.waitingForWaveBack")}</Text>
             ) : null}
           </View>
           <Text className="text-wave-muted text-xs">{freshness}</Text>
@@ -118,7 +120,7 @@ export function PeerRow({
           className="bg-wave-match/20 border border-wave-match/40 rounded-lg px-3 py-1.5"
         >
           <Text className="text-wave-match font-semibold text-sm">
-            Matched 🤝
+            {t("peerRow.matchedButton")}
           </Text>
         </TouchableOpacity>
       ) : wavePending ? (
@@ -126,7 +128,7 @@ export function PeerRow({
           onPress={() => onUndo(peer.ephemeralToken)}
           className="bg-orange-500/20 border border-orange-500/40 rounded-lg px-3 py-1.5"
         >
-          <Text className="text-orange-400 font-semibold text-sm">Undo</Text>
+          <Text className="text-orange-400 font-semibold text-sm">{t("peerRow.undo")}</Text>
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -147,7 +149,7 @@ export function PeerRow({
                 : hasWavedAtMe ? "text-green-400" : "text-wave-wave"
             }`}
           >
-            {hasWavedAtMe ? "Wave Back 👋" : "Wave 👋"}
+            {hasWavedAtMe ? t("peerRow.waveBack") : t("peerRow.wave")}
           </Text>
         </TouchableOpacity>
       )}

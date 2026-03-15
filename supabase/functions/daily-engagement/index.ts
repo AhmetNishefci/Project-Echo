@@ -14,6 +14,24 @@ const adminClient = createClient(
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
+// ─── Localized push notification strings ─────────────────────────────
+const PUSH_STRINGS: Record<string, Record<string, string>> = {
+  en: {
+    matchTitle: "It's a Match! \u{1F389}",
+    matchBody: "Someone waved back! Open Wave to see who.",
+    waveTitle: "Someone waved at you! \u{1F44B}",
+    waveBody: "Open Wave to wave back",
+    proximityTitle: "Wave \u{1F44B}",
+    proximityBody: "A Wave user is nearby \u2014 open the app to connect!",
+  },
+  // More languages added here when translated
+};
+
+function getPushString(locale: string | null, key: string): string {
+  const lang = locale?.substring(0, 2) ?? "en";
+  return PUSH_STRINGS[lang]?.[key] ?? PUSH_STRINGS.en[key];
+}
+
 /** Minimum hours between engagement pushes for the same user.
  *  Set to 24h — broad enough to also suppress after organic wave/match
  *  pushes without needing a separate tracking table. */

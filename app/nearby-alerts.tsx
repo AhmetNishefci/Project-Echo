@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Switch, Linking
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/authStore";
 import { saveNearbyAlertsPreference } from "@/services/profile";
 import { requestLocationPermission } from "@/services/location";
@@ -10,6 +11,7 @@ import { impactMedium } from "@/utils/haptics";
 import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 export default function NearbyAlertsScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -35,7 +37,7 @@ export default function NearbyAlertsScreen() {
     if (!success) {
       setSaving(false);
       savingRef.current = false;
-      Alert.alert("Couldn't Save", "We had trouble saving your preference. Check your connection and try again.");
+      Alert.alert(t("common.couldntSave"), t("nearbyAlerts.saveError"));
       return;
     }
 
@@ -49,11 +51,11 @@ export default function NearbyAlertsScreen() {
         await saveNearbyAlertsPreference(false);
         useAuthStore.getState().setNearbyAlertsEnabled(false);
         Alert.alert(
-          "Location Access Needed",
-          "You've previously denied location access. To enable nearby alerts, open Settings and allow location for Wave.",
+          t("nearbyAlerts.locationNeeded"),
+          t("nearbyAlerts.locationDenied"),
           [
-            { text: "Not Now", style: "cancel" },
-            { text: "Open Settings", onPress: () => Linking.openSettings() },
+            { text: t("nearbyAlerts.notNow"), style: "cancel" },
+            { text: t("common.openSettings"), onPress: () => Linking.openSettings() },
           ],
         );
       } else if (permResult === "denied") {
@@ -81,7 +83,7 @@ export default function NearbyAlertsScreen() {
     if (!success) {
       setSaving(false);
       savingRef.current = false;
-      Alert.alert("Couldn't Save", "We had trouble saving your preference. Check your connection and try again.");
+      Alert.alert(t("common.couldntSave"), t("nearbyAlerts.saveError"));
       return;
     }
 
@@ -105,10 +107,10 @@ export default function NearbyAlertsScreen() {
       </View>
 
       <Text className="text-2xl font-bold text-white mb-2">
-        Never Miss a Connection
+        {t("nearbyAlerts.title")}
       </Text>
       <Text className="text-wave-muted text-sm text-center mb-8 leading-5 px-4">
-        Get notified when Wave users are near you so you can wave before they leave.
+        {t("nearbyAlerts.description")}
       </Text>
 
       {/* How it works */}
@@ -118,7 +120,7 @@ export default function NearbyAlertsScreen() {
             <Text className="text-sm">📍</Text>
           </View>
           <Text className="text-white text-sm flex-1">
-            We check your location when you open Wave
+            {t("nearbyAlerts.checkLocation")}
           </Text>
         </View>
         <View className="flex-row items-center mb-4">
@@ -126,7 +128,7 @@ export default function NearbyAlertsScreen() {
             <Text className="text-sm">🔔</Text>
           </View>
           <Text className="text-white text-sm flex-1">
-            You get a notification when Wave users are nearby
+            {t("nearbyAlerts.notifyNearby")}
           </Text>
         </View>
         <View className="flex-row items-center">
@@ -134,7 +136,7 @@ export default function NearbyAlertsScreen() {
             <Text className="text-sm">🔒</Text>
           </View>
           <Text className="text-white text-sm flex-1">
-            Your location is never shared with other users
+            {t("nearbyAlerts.locationPrivacy")}
           </Text>
         </View>
       </View>
@@ -142,9 +144,9 @@ export default function NearbyAlertsScreen() {
       {/* Toggle */}
       <View className="w-full bg-wave-surface rounded-2xl p-4 mb-8 flex-row items-center justify-between">
         <View className="flex-1 mr-4">
-          <Text className="text-white text-base font-semibold">Nearby Alerts</Text>
+          <Text className="text-white text-base font-semibold">{t("nearbyAlerts.toggleLabel")}</Text>
           <Text className="text-wave-muted text-xs mt-1">
-            Know when Wave users are around you
+            {t("nearbyAlerts.toggleSubtitle")}
           </Text>
         </View>
         <Switch
@@ -165,17 +167,17 @@ export default function NearbyAlertsScreen() {
         {saving ? (
           <ActivityIndicator color="white" size="small" />
         ) : (
-          <Text className="text-white text-base font-semibold">Continue</Text>
+          <Text className="text-white text-base font-semibold">{t("common.continue")}</Text>
         )}
       </TouchableOpacity>
 
       {/* Skip */}
       <TouchableOpacity onPress={handleSkip} disabled={saving}>
-        <Text className="text-wave-muted text-sm">Skip for now</Text>
+        <Text className="text-wave-muted text-sm">{t("nearbyAlerts.skipForNow")}</Text>
       </TouchableOpacity>
 
       <Text className="text-wave-muted text-xs text-center mt-4 leading-5 px-4">
-        You can change this anytime in Settings.
+        {t("nearbyAlerts.canChange")}
       </Text>
     </View>
   );

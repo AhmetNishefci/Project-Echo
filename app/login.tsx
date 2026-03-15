@@ -3,21 +3,23 @@ import { View, Text, Image, TouchableOpacity, ActivityIndicator, Alert } from "r
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { signInWithGoogle, signInWithApple } from "@/services/auth";
 import { COLORS } from "@/constants/colors";
 import { impactMedium } from "@/utils/haptics";
 
 const waveHand = require("../assets/wave-hand.png");
 
-const STEPS = [
-  { icon: "radio-outline" as const, text: "Discover people nearby" },
-  { icon: "hand-left-outline" as const, text: "Send a wave to connect" },
-  { icon: "people-outline" as const, text: "Match when they wave back" },
-];
-
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const STEPS = [
+    { icon: "radio-outline" as const, text: t("login.discoverPeople") },
+    { icon: "hand-left-outline" as const, text: t("login.sendWave") },
+    { icon: "people-outline" as const, text: t("login.matchWaveBack") },
+  ];
   const [loadingProvider, setLoadingProvider] = useState<"google" | "apple" | null>(null);
   const signingInRef = useRef(false);
 
@@ -38,7 +40,7 @@ export default function LoginScreen() {
     if (success) {
       router.replace("/");
     } else if (error && error !== "cancelled") {
-      Alert.alert("Sign In Failed", error);
+      Alert.alert(t("common.signInFailed"), error);
     }
   };
 
@@ -66,7 +68,7 @@ export default function LoginScreen() {
           />
         </View>
 
-        <Text className="text-5xl font-bold text-white mb-10">Wave</Text>
+        <Text className="text-5xl font-bold text-white mb-10">{t("common.wave")}</Text>
 
         {/* How it works */}
         <View className="mb-12 items-center">
@@ -94,7 +96,7 @@ export default function LoginScreen() {
               <>
                 <Ionicons name="logo-apple" size={20} color="black" style={{ marginRight: 8 }} />
                 <Text className="text-black text-base font-semibold">
-                  Continue with Apple
+                  {t("login.continueApple")}
                 </Text>
               </>
             )}
@@ -112,7 +114,7 @@ export default function LoginScreen() {
               <>
                 <Ionicons name="logo-google" size={20} color="white" style={{ marginRight: 8 }} />
                 <Text className="text-white text-base font-semibold">
-                  Continue with Google
+                  {t("login.continueGoogle")}
                 </Text>
               </>
             )}
@@ -126,13 +128,13 @@ export default function LoginScreen() {
           >
             <Ionicons name="call-outline" size={20} color="white" style={{ marginRight: 8 }} />
             <Text className="text-white text-base font-semibold">
-              Continue with Phone
+              {t("login.continuePhone")}
             </Text>
           </TouchableOpacity>
         </View>
 
         <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
-          Your identity stays hidden until a mutual match.
+          {t("common.identityHidden")}
         </Text>
     </View>
   );

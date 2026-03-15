@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvo
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { saveNote } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium } from "@/utils/haptics";
@@ -11,6 +12,7 @@ import { OnboardingProgress } from "@/components/OnboardingProgress";
 const MAX_NOTE_LENGTH = 40;
 
 export default function NoteScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -47,9 +49,9 @@ export default function NoteScreen() {
 
     if (!success) {
       Alert.alert(
-        "Couldn't Save",
-        "Your note couldn't be saved. You can try again in settings.",
-        [{ text: "Continue", onPress: () => router.replace("/nearby-alerts") }],
+        t("common.couldntSave"),
+        t("note.saveError"),
+        [{ text: t("note.continueButton"), onPress: () => router.replace("/nearby-alerts") }],
       );
       return;
     }
@@ -74,17 +76,17 @@ export default function NoteScreen() {
         </View>
 
         <Text className="text-2xl font-bold text-white mb-2">
-          Add a Note
+          {t("note.title")}
         </Text>
         <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
-          Help people nearby recognize you. Something like your name, what you're wearing, or where you are.
+          {t("note.description")}
         </Text>
 
         <View className="w-full bg-wave-surface rounded-2xl px-4 flex-row items-center mb-2" style={{ height: 52 }}>
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder={'e.g. "Alex, red hoodie near the bar"'}
+            placeholder={t("note.placeholder")}
             placeholderTextColor="#555"
             autoCapitalize="sentences"
             autoCorrect={false}
@@ -114,13 +116,13 @@ export default function NoteScreen() {
             <ActivityIndicator color="white" size="small" />
           ) : (
             <Text className={`text-base font-semibold ${note.trim() ? "text-white" : "text-wave-muted"}`}>
-              {note.trim() ? "Continue" : "Skip for now"}
+              {note.trim() ? t("common.continue") : t("note.skipForNow")}
             </Text>
           )}
         </TouchableOpacity>
 
         <Text className="text-wave-muted text-xs text-center mt-6 leading-5">
-          This is optional. You can always add or change it in settings.
+          {t("note.optional")}
         </Text>
       </View>
     </KeyboardAvoidingView>

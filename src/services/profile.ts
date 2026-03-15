@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import { logger } from "@/utils/logger";
+import { getLocales } from "expo-localization";
 import type { Gender, GenderPreference } from "@/types";
 
 // Cache to avoid syncing timezone on every app open
@@ -519,7 +520,7 @@ export async function syncTimezoneAndActivity(): Promise<void> {
       last_active_at: new Date().toISOString(),
     };
 
-    // Sync timezone periodically (defense-in-depth: validate IANA format)
+    // Sync timezone and locale periodically (defense-in-depth: validate IANA format)
     if (now - lastTimezoneSyncMs > TIMEZONE_SYNC_INTERVAL_MS) {
       try {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -531,6 +532,17 @@ export async function syncTimezoneAndActivity(): Promise<void> {
         }
       } catch {
         // Intl not available on some engines — skip
+      }
+
+      // Sync device locale (e.g. "en", "fr", "de-DE") so push notifications
+      // can be sent in the user's language
+      try {
+        const deviceLocale = getLocales()?.[0]?.languageTag;
+        if (deviceLocale) {
+          updates.locale = deviceLocale;
+        }
+      } catch {
+        // expo-localization not available — skip
       }
     }
 

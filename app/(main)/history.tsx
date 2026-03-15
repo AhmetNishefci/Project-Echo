@@ -1,6 +1,7 @@
 import { View, Text, SectionList, TouchableOpacity, Share, Alert, ActivityIndicator, Linking, RefreshControl } from "react-native";
 import { useMemo, useEffect, useRef, useCallback, useState } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useWaveStore } from "@/stores/waveStore";
 import { removeMatchFromServer } from "@/services/wave/waves";
 import { fetchMatchesFromServer, loadMoreMatches } from "@/services/wave/matches";
@@ -10,6 +11,7 @@ import { SocialActionRow } from "@/components/SocialActionRow";
 import { COLORS } from "@/constants/colors";
 import type { Match } from "@/types";
 import { getAvatarForToken } from "@/types";
+import i18n from "@/i18n";
 
 /** Group matches by date with meaningful time buckets */
 function groupByDate(matches: Match[]) {
@@ -26,11 +28,11 @@ function groupByDate(matches: Match[]) {
   const lastWeekStart = new Date(thisWeekStart.getTime() - 7 * 86_400_000);
 
   const groups: { title: string; data: Match[] }[] = [
-    { title: "Today", data: [] },
-    { title: "Yesterday", data: [] },
-    { title: "This Week", data: [] },
-    { title: "Last Week", data: [] },
-    { title: "Earlier", data: [] },
+    { title: i18n.t("history.today"), data: [] },
+    { title: i18n.t("history.yesterday"), data: [] },
+    { title: i18n.t("history.thisWeek"), data: [] },
+    { title: i18n.t("history.lastWeek"), data: [] },
+    { title: i18n.t("history.earlier"), data: [] },
   ];
 
   // Sort newest first
@@ -57,6 +59,7 @@ function groupByDate(matches: Match[]) {
 }
 
 export default function HistoryScreen() {
+  const { t } = useTranslation();
   const matches = useWaveStore((s) => s.matches);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -109,8 +112,7 @@ export default function HistoryScreen() {
   const handleInvite = async () => {
     try {
       await Share.share({
-        message:
-          "I'm using Wave to connect with people nearby! Download it and wave at me 👋",
+        message: t("history.shareMessage"),
       });
     } catch {
       // User cancelled share
@@ -122,11 +124,11 @@ export default function HistoryScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between mb-6">
         <View>
-          <Text className="text-3xl font-bold text-white">Matches</Text>
+          <Text className="text-3xl font-bold text-white">{t("history.title")}</Text>
           <Text className="text-wave-muted text-sm mt-1">
             {matches.length === 0
-              ? "No matches yet"
-              : `${matches.length} ${matches.length === 1 ? "match" : "matches"} total`}
+              ? t("history.noMatches")
+              : t("history.matchCount", { count: matches.length })}
           </Text>
         </View>
       </View>
@@ -137,11 +139,10 @@ export default function HistoryScreen() {
             <Text className="text-4xl">👋</Text>
           </View>
           <Text className="text-white text-lg font-semibold mb-2">
-            No matches yet
+            {t("history.emptyTitle")}
           </Text>
           <Text className="text-wave-muted text-center text-sm px-8">
-            When you and someone nearby both wave at each other, you'll match
-            and they'll appear here.
+            {t("history.emptyDescription")}
           </Text>
           <TouchableOpacity
             onPress={handleInvite}
@@ -149,7 +150,7 @@ export default function HistoryScreen() {
           >
             <Text className="text-lg mr-2">📲</Text>
             <Text className="text-white font-semibold text-sm">
-              Invite Friends Nearby
+              {t("history.inviteFriends")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -206,6 +207,7 @@ function MatchRow({
   match: Match;
   onPress: (match: Match) => void;
 }) {
+  const { t } = useTranslation();
   const matchDate = new Date(match.createdAt);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -254,10 +256,10 @@ function MatchRow({
         ) : (
           <>
             <Text className="text-white font-semibold text-base">
-              Someone nearby
+              {t("history.someoneNearby")}
             </Text>
             <Text className="text-wave-muted text-xs mt-1">
-              Matched {matchLabel} · No socials linked
+              Matched {matchLabel} · {t("history.noSocials")}
             </Text>
           </>
         )}
@@ -285,25 +287,26 @@ function MatchActionSheet({
   match: Match;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const igHandle = match.instagramHandle;
   const scHandle = match.snapchatHandle;
-  const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : "Someone nearby";
+  const displayName = igHandle ? `@${igHandle}` : scHandle ? scHandle : t("history.someoneNearby");
   const avatar = getAvatarForToken(match.matchedUserId);
 
   const handleRemove = () => {
     onClose();
     Alert.alert(
-      "Remove Match",
-      `Remove ${displayName}? This removes the match for both of you.`,
+      t("history.removeMatch"),
+      t("history.removeConfirm", { name: displayName }),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Remove",
+          text: t("common.remove"),
           style: "destructive",
           onPress: async () => {
             const success = await removeMatchFromServer(match.matchId);
             if (!success) {
-              Alert.alert("Error", "Could not remove the match. Try again.");
+              Alert.alert(t("common.error"), t("history.removeError"));
             }
           },
         },
@@ -354,11 +357,11 @@ function MatchActionSheet({
         onPress={handleRemove}
         className="bg-wave-bg rounded-xl py-3.5 px-4 mb-2 flex-row items-center"
         activeOpacity={0.7}
-        accessibilityLabel="Remove Match"
+        accessibilityLabel={t("history.removeMatch")}
         accessibilityRole="button"
       >
         <Ionicons name="trash-outline" size={20} color={COLORS.danger} style={{ marginRight: 12 }} />
-        <Text className="text-wave-danger text-sm font-semibold">Remove Match</Text>
+        <Text className="text-wave-danger text-sm font-semibold">{t("history.removeMatch")}</Text>
       </TouchableOpacity>
 
       {/* Report */}
@@ -366,11 +369,11 @@ function MatchActionSheet({
         onPress={handleReport}
         className="bg-wave-bg rounded-xl py-3.5 px-4 mb-2 flex-row items-center"
         activeOpacity={0.7}
-        accessibilityLabel="Report User"
+        accessibilityLabel={t("history.reportUser")}
         accessibilityRole="button"
       >
         <Ionicons name="flag-outline" size={20} color={COLORS.text} style={{ marginRight: 12 }} />
-        <Text className="text-wave-text text-sm font-semibold">Report User</Text>
+        <Text className="text-wave-text text-sm font-semibold">{t("history.reportUser")}</Text>
       </TouchableOpacity>
     </BottomSheet>
   );

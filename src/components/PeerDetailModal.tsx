@@ -1,5 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useRouter } from "expo-router";
 import { openInstagramProfile, openSnapchatProfile } from "@/utils/deepLink";
 import { useWaveStore } from "@/stores/waveStore";
@@ -16,6 +17,7 @@ export function PeerDetailModal({
   peer: NearbyPeer;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const router = useRouter();
   const avatar = getAvatarForToken(peer.ephemeralToken);
   const signal = getSignalLabel(peer.rssi);
@@ -40,11 +42,11 @@ export function PeerDetailModal({
           <Text className="text-2xl">{isMatched ? "✨" : avatar.emoji}</Text>
         </View>
         <Text className="text-white text-lg font-semibold text-center px-4">
-          {peer.note || "Someone"}
+          {peer.note || t("peerDetail.someone")}
         </Text>
         {isMatched && (
           <View className="bg-wave-match/20 rounded-full px-3 py-1 mt-2">
-            <Text className="text-wave-match text-xs font-semibold">Matched</Text>
+            <Text className="text-wave-match text-xs font-semibold">{t("peerDetail.matched")}</Text>
           </View>
         )}
       </View>
@@ -72,15 +74,15 @@ export function PeerDetailModal({
       {/* Details */}
       <View className="bg-wave-bg rounded-xl px-4 py-3 mb-4">
         <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-wave-muted text-sm">Distance</Text>
+          <Text className="text-wave-muted text-sm">{t("peerDetail.distance")}</Text>
           <Text className={`text-sm font-medium ${zoneColor}`}>{zoneLabel}</Text>
         </View>
         <View className="flex-row justify-between items-center mb-2">
-          <Text className="text-wave-muted text-sm">Signal</Text>
+          <Text className="text-wave-muted text-sm">{t("peerDetail.signal")}</Text>
           <Text className="text-white text-sm">{signal}</Text>
         </View>
         <View className="flex-row justify-between items-center">
-          <Text className="text-wave-muted text-sm">Last seen</Text>
+          <Text className="text-wave-muted text-sm">{t("peerDetail.lastSeen")}</Text>
           <Text className="text-white text-sm">{freshness}</Text>
         </View>
       </View>
@@ -93,7 +95,7 @@ export function PeerDetailModal({
           accessibilityLabel="View All Matches"
           accessibilityRole="button"
         >
-          <Text className="text-white text-sm font-semibold">View All Matches</Text>
+          <Text className="text-white text-sm font-semibold">{t("peerDetail.viewAllMatches")}</Text>
         </TouchableOpacity>
       )}
 
@@ -104,7 +106,7 @@ export function PeerDetailModal({
         accessibilityLabel="Close"
         accessibilityRole="button"
       >
-        <Text className="text-white text-sm font-semibold">Close</Text>
+        <Text className="text-white text-sm font-semibold">{t("peerDetail.close")}</Text>
       </TouchableOpacity>
     </BottomSheet>
   );

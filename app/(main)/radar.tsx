@@ -10,6 +10,7 @@ import {
   Share,
   RefreshControl,
 } from "react-native";
+import { useTranslation } from "react-i18next";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { impactMedium, impactLight, notifySuccess, notifyError } from "@/utils/haptics";
 import { useBleStore } from "@/stores/bleStore";
@@ -35,12 +36,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { saveNote } from "@/services/profile";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS } from "@/constants/colors";
-
-const ZONE_CONFIG: Record<DistanceZone, { label: string; color: string }> = {
-  HERE: { label: "Right Here", color: "text-green-400" },
-  CLOSE: { label: "Close By", color: "text-blue-400" },
-  NEARBY: { label: "Nearby", color: "text-wave-muted" },
-};
+import { ZONE_CONFIG } from "@/constants/zones";
 
 const PEER_DISPLAY_CAP = 50;
 
@@ -52,6 +48,7 @@ interface ZoneSection {
 }
 
 export default function RadarScreen() {
+  const { t } = useTranslation();
   const {
     adapterState,
     isScanning,
@@ -133,7 +130,7 @@ export default function RadarScreen() {
       useAuthStore.getState().setNote(trimmed || null);
       setEditingNote(false);
     } else {
-      setToast({ message: "Couldn't update your note", variant: "error" });
+      setToast({ message: t("radar.couldntUpdateNote"), variant: "error" });
     }
   }, [noteInput]);
 
@@ -217,8 +214,8 @@ export default function RadarScreen() {
       }
       if (result !== "granted") {
         Alert.alert(
-          "Permissions Required",
-          "Wave needs Bluetooth permissions to discover nearby people.",
+          t("radar.permissionsRequired"),
+          t("radar.permissionsBody"),
         );
         return;
       }
@@ -234,8 +231,8 @@ export default function RadarScreen() {
 
       if (!token) {
         Alert.alert(
-          "Connection Issue",
-          "Could not connect to the server. Check your internet and try again.",
+          t("radar.connectionIssue"),
+          t("radar.connectionIssueBody"),
         );
         return;
       }
@@ -256,7 +253,7 @@ export default function RadarScreen() {
       }
     } catch (err) {
       logger.error("Failed to start discovery", err);
-      Alert.alert("Error", "Failed to start Bluetooth discovery.");
+      Alert.alert(t("common.error"), t("radar.bluetoothError"));
     } finally {
       startingRef.current = false;
       setIsStarting(false);
@@ -303,18 +300,18 @@ export default function RadarScreen() {
     if (result.status === "error") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
-      setToast({ message: "Could not send wave. Try again.", variant: "error" });
+      setToast({ message: t("radar.couldntWave"), variant: "error" });
     } else if (result.status === "already_matched") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken, {
         instagram: result.match?.instagramHandle,
         snapchat: result.match?.snapchatHandle,
       });
-      setToast({ message: "You've already matched with this person!" });
+      setToast({ message: t("radar.alreadyMatchedToast") });
     } else if (result.status === "rate_limited") {
       store.removePendingWave(peer.ephemeralToken);
       notifyError();
-      setToast({ message: "You're waving too fast. Wait a moment.", variant: "error" });
+      setToast({ message: t("radar.waveTooFast"), variant: "error" });
     } else if (result.status === "match") {
       store.removePendingWave(peer.ephemeralToken);
       store.addMatchedToken(peer.ephemeralToken, {
@@ -328,7 +325,7 @@ export default function RadarScreen() {
       if (result.targetUserId) {
         store.setPendingWaveUser(result.targetUserId, peer.ephemeralToken);
       }
-      setToast({ message: "Wave sent! You can undo anytime before it expires." });
+      setToast({ message: t("radar.waveSentToast") });
     }
   }, []);
 
@@ -341,18 +338,17 @@ export default function RadarScreen() {
     undoingRef.current = null;
     if (success) {
       useWaveStore.getState().removePendingWaveByToken(targetToken);
-      setToast({ message: "Wave undone" });
+      setToast({ message: t("radar.waveUndoneToast") });
     } else {
       notifyError();
-      setToast({ message: "Could not undo wave. It may have been matched or expired.", variant: "error" });
+      setToast({ message: t("radar.couldntUndo"), variant: "error" });
     }
   }, []);
 
   const handleInvite = useCallback(async () => {
     try {
       await Share.share({
-        message:
-          "I'm using Wave to connect with people nearby! Download it and wave at me 👋",
+        message: t("radar.shareMessage"),
       });
     } catch {
       // User cancelled share
@@ -373,8 +369,7 @@ export default function RadarScreen() {
           {section.title}
         </Text>
         <Text className="text-wave-muted text-sm ml-2">
-          {section.data.length}{" "}
-          {section.data.length === 1 ? "person" : "people"}
+          {t("radar.people", { count: section.data.length })}
         </Text>
       </View>
     ),
@@ -396,13 +391,13 @@ export default function RadarScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between mb-4">
         <View>
-          <Text className="text-3xl font-bold text-white">Wave</Text>
+          <Text className="text-3xl font-bold text-white">{t("radar.title")}</Text>
           <Text className="text-wave-muted text-sm mt-1">
             {totalPeers > 0
-              ? `${totalPeers} ${totalPeers === 1 ? "person" : "people"} nearby`
+              ? t("radar.peopleNearby", { count: totalPeers })
               : isDiscoveryActive
-                ? "Searching for people nearby..."
-                : "Start scanning to find people"}
+                ? t("radar.searching")
+                : t("radar.startScanning")}
           </Text>
         </View>
       </View>
@@ -465,10 +460,10 @@ export default function RadarScreen() {
           <Text className="text-lg mr-3">📡</Text>
           <View className="flex-1">
             <Text className="text-yellow-400 font-semibold text-sm">
-              No internet connection
+              {t("radar.noInternet")}
             </Text>
             <Text className="text-wave-muted text-xs mt-0.5">
-              You can see nearby people, but waves need internet to send.
+              {t("radar.noInternetDescription")}
             </Text>
           </View>
         </Animated.View>
@@ -485,11 +480,11 @@ export default function RadarScreen() {
           <View className="flex-1">
             <Text className="text-white font-semibold text-sm">
               {incomingWaveTokens.length === 1
-                ? "Someone nearby waved at you!"
-                : `${incomingWaveTokens.length} people nearby waved at you!`}
+                ? t("radar.someoneWaved")
+                : t("radar.peopleWaved", { count: incomingWaveTokens.length })}
             </Text>
             <Text className="text-wave-muted text-xs mt-0.5">
-              Wave back to match and see their Instagram
+              {t("radar.waveBackHint")}
             </Text>
           </View>
         </Animated.View>
@@ -503,7 +498,7 @@ export default function RadarScreen() {
               ref={noteInputRef}
               value={noteInput}
               onChangeText={setNoteInput}
-              placeholder='e.g. "Sarah, Rooftop Bar"'
+              placeholder={t("radar.notePlaceholder")}
               placeholderTextColor={COLORS.placeholder}
               autoCapitalize="sentences"
               autoCorrect={false}
@@ -521,7 +516,7 @@ export default function RadarScreen() {
               onPress={() => { setEditingNote(false); setNoteInput(currentNote ?? ""); }}
               className="px-3 py-1.5"
             >
-              <Text className="text-wave-muted text-xs font-semibold">Cancel</Text>
+              <Text className="text-wave-muted text-xs font-semibold">{t("common.cancel")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleSaveNote}
@@ -531,7 +526,7 @@ export default function RadarScreen() {
               {savingNote ? (
                 <ActivityIndicator color={COLORS.white} size="small" />
               ) : (
-                <Text className="text-white text-xs font-semibold">Save</Text>
+                <Text className="text-white text-xs font-semibold">{t("common.save")}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -544,7 +539,7 @@ export default function RadarScreen() {
         >
           <Ionicons name="create-outline" size={16} color={COLORS.muted} style={{ marginRight: 8 }} />
           <Text className="text-wave-muted text-sm flex-1" numberOfLines={1}>
-            {currentNote || "Add a note — help people find you"}
+            {currentNote || t("radar.addNote")}
           </Text>
           <Ionicons name="chevron-forward" size={14} color={COLORS.muted} />
         </TouchableOpacity>
@@ -561,12 +556,12 @@ export default function RadarScreen() {
             <View className="flex-row items-center">
               <ActivityIndicator size="small" color="white" />
               <Text className="text-white text-lg font-semibold ml-2">
-                {currentToken ? "Starting..." : "Connecting..."}
+                {currentToken ? t("radar.starting") : t("radar.connecting")}
               </Text>
             </View>
           ) : (
             <Text className="text-white text-lg font-semibold">
-              Start Discovery
+              {t("radar.startDiscovery")}
             </Text>
           )}
         </TouchableOpacity>
@@ -576,7 +571,7 @@ export default function RadarScreen() {
           className="bg-wave-surface py-4 rounded-2xl items-center mb-4 border border-wave-muted"
         >
           <Text className="text-wave-muted text-lg font-semibold">
-            Stop Discovery
+            {t("radar.stopDiscovery")}
           </Text>
         </TouchableOpacity>
       )}
@@ -604,7 +599,7 @@ export default function RadarScreen() {
               className="bg-wave-surface rounded-2xl py-3 items-center mt-2 mb-4"
             >
               <Text className="text-wave-accent text-sm font-semibold">
-                Show {totalPeers - PEER_DISPLAY_CAP} more {totalPeers - PEER_DISPLAY_CAP === 1 ? "person" : "people"}
+                {t("radar.showMore", { count: totalPeers - PEER_DISPLAY_CAP })}
               </Text>
             </TouchableOpacity>
           ) : null
@@ -616,17 +611,15 @@ export default function RadarScreen() {
               <ScanPulse />
 
               <Text className="text-white text-base font-semibold mb-2 mt-6">
-                Looking for people...
+                {t("radar.scanningTitle")}
               </Text>
               {showProximityHint ? (
                 <Text className="text-wave-muted text-sm text-center px-8 mb-8">
-                  Wave users were detected in your area. Keep scanning — they
-                  may appear as you move around.
+                  {t("radar.proximityHint")}
                 </Text>
               ) : (
                 <Text className="text-wave-muted text-sm text-center px-8 mb-8">
-                  Wave at someone nearby. If they wave back, you'll match and
-                  see each other's Instagram!
+                  {t("radar.scanningDescription")}
                 </Text>
               )}
 
@@ -637,7 +630,7 @@ export default function RadarScreen() {
               >
                 <Text className="text-lg mr-2">📲</Text>
                 <Text className="text-white font-semibold text-sm">
-                  Invite Friends Nearby
+                  {t("radar.inviteFriends")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -653,10 +646,10 @@ export default function RadarScreen() {
               </View>
 
               <Text className="text-white text-lg font-bold mb-2 mt-6">
-                Discover People Nearby
+                {t("radar.discoverTitle")}
               </Text>
               <Text className="text-wave-muted text-sm text-center px-8 leading-5">
-                Tap <Text className="text-wave-primary font-semibold">Start Discovery</Text> to
+                Tap <Text className="text-wave-primary font-semibold">{t("radar.startDiscovery")}</Text> to
                 find people around you. Wave at someone — if they wave back,
                 you'll match and see each other's Instagram.
               </Text>
@@ -668,7 +661,7 @@ export default function RadarScreen() {
               >
                 <Text className="text-lg mr-2">📲</Text>
                 <Text className="text-white font-semibold text-sm">
-                  Invite Friends Nearby
+                  {t("radar.inviteFriends")}
                 </Text>
               </TouchableOpacity>
             </View>

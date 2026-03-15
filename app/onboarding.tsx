@@ -4,12 +4,14 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, Alert, Keyb
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { saveInstagramHandle, saveSnapchatHandle } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium } from "@/utils/haptics";
 import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 export default function OnboardingScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -31,7 +33,7 @@ export default function OnboardingScreen() {
     const trimmedSc = scHandle.trim().replace(/^@/, "");
 
     if (!trimmedIg && !trimmedSc) {
-      Alert.alert("Required", "Please add at least one username so your matches can reach you.");
+      Alert.alert(t("onboarding.required"), t("onboarding.requireDescription"));
       return;
     }
 
@@ -52,9 +54,9 @@ export default function OnboardingScreen() {
         setSaving(false);
         savingRef.current = false;
         if (result.error === "taken") {
-          Alert.alert("Username Taken", "This Instagram username is already linked to another Wave account.");
+          Alert.alert(t("onboarding.usernameTaken"), t("onboarding.instagramTaken"));
         } else {
-          Alert.alert("Invalid Username", "Please enter a valid Instagram username (letters, numbers, dots, and underscores).");
+          Alert.alert(t("onboarding.invalidUsername"), t("onboarding.instagramInvalid"));
         }
         return;
       }
@@ -67,9 +69,9 @@ export default function OnboardingScreen() {
         setSaving(false);
         savingRef.current = false;
         if (result.error === "taken") {
-          Alert.alert("Username Taken", "This Snapchat username is already linked to another Wave account.");
+          Alert.alert(t("onboarding.usernameTaken"), t("onboarding.snapchatTaken"));
         } else {
-          Alert.alert("Invalid Username", "Please enter a valid Snapchat username (3-15 characters, starts with a letter).");
+          Alert.alert(t("onboarding.invalidUsername"), t("onboarding.snapchatInvalid"));
         }
         return;
       }
@@ -103,24 +105,24 @@ export default function OnboardingScreen() {
         </View>
 
         <Text className="text-2xl font-bold text-white mb-2">
-          Add your socials
+          {t("onboarding.title")}
         </Text>
         <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
-          Add at least one so your matches can connect with you.
+          {t("onboarding.description")}
         </Text>
 
         {/* Instagram input */}
         <View className="w-full mb-4">
           <View className="flex-row items-center mb-2">
             <Ionicons name="logo-instagram" size={16} color="#6c63ff" />
-            <Text className="text-wave-muted text-xs ml-1.5">Instagram</Text>
+            <Text className="text-wave-muted text-xs ml-1.5">{t("onboarding.instagram")}</Text>
           </View>
           <View className="w-full bg-wave-surface rounded-2xl px-4 flex-row items-center" style={{ height: 52 }}>
             <Text className="text-wave-muted text-base" style={{ lineHeight: 20 }}>@</Text>
             <TextInput
               value={igHandle}
               onChangeText={setIgHandle}
-              placeholder="username"
+              placeholder={t("common.username")}
               placeholderTextColor="#555"
               autoCapitalize="none"
               autoCorrect={false}
@@ -137,14 +139,14 @@ export default function OnboardingScreen() {
         <View className="w-full mb-6">
           <View className="flex-row items-center mb-2">
             <Ionicons name="logo-snapchat" size={16} color="#FFFC00" />
-            <Text className="text-wave-muted text-xs ml-1.5">Snapchat</Text>
+            <Text className="text-wave-muted text-xs ml-1.5">{t("onboarding.snapchat")}</Text>
           </View>
           <View className="w-full bg-wave-surface rounded-2xl px-4 flex-row items-center" style={{ height: 52 }}>
             <TextInput
               ref={snapchatInputRef}
               value={scHandle}
               onChangeText={setScHandle}
-              placeholder="username"
+              placeholder={t("common.username")}
               placeholderTextColor="#555"
               autoCapitalize="none"
               autoCorrect={false}
@@ -169,13 +171,13 @@ export default function OnboardingScreen() {
             <ActivityIndicator color="white" size="small" />
           ) : (
             <Text className={`text-base font-semibold ${hasAnyInput ? "text-white" : "text-wave-muted"}`}>
-              Continue
+              {t("common.continue")}
             </Text>
           )}
         </TouchableOpacity>
 
         <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
-          Your socials are only revealed after a mutual match.
+          {t("onboarding.socialsHidden")}
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

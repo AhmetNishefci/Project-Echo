@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { View, Text, Image, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/stores/authStore";
 import { fetchProfile, syncTimezoneAndActivity } from "@/services/profile";
 import { fetchMatchesFromServer } from "@/services/wave/matches";
@@ -13,6 +14,7 @@ const waveHand = require("../assets/wave-hand.png");
 const MAX_PROFILE_RETRIES = 3;
 
 export default function IndexScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuthStore();
   const [fetchFailed, setFetchFailed] = useState(false);
@@ -184,11 +186,11 @@ export default function IndexScreen() {
         style={{ width: 80, height: 80 }}
         resizeMode="contain"
       />
-      <Text className="text-4xl font-bold text-white mb-6">Wave</Text>
+      <Text className="text-4xl font-bold text-white mb-6">{t("common.wave")}</Text>
       {fetchFailed ? (
         <View className="items-center">
           <Text className="text-wave-muted text-sm mb-4">
-            Could not connect. Check your internet and try again.
+            {t("splash.connectionError")}
           </Text>
           <TouchableOpacity
             onPress={handleRetry}
@@ -198,7 +200,7 @@ export default function IndexScreen() {
             {isNavigating ? (
               <ActivityIndicator color="white" size="small" />
             ) : (
-              <Text className="text-white text-sm font-semibold">Retry</Text>
+              <Text className="text-white text-sm font-semibold">{t("common.retry")}</Text>
             )}
           </TouchableOpacity>
         </View>

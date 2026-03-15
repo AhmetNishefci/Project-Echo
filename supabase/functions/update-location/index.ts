@@ -14,6 +14,23 @@ const adminClient = createClient(
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
+// ─── Localized push notification strings ─────────────────────────────
+const PUSH_STRINGS: Record<string, Record<string, string>> = {
+  en: { proximityTitle: "Wave 👋", proximityBody: "A Wave user is nearby — open the app to connect!" },
+  de: { proximityTitle: "Wave 👋", proximityBody: "Ein Wave-Nutzer ist in der Nähe — öffne die App!" },
+  fr: { proximityTitle: "Wave 👋", proximityBody: "Un utilisateur Wave est à proximité — ouvre l'app !" },
+  es: { proximityTitle: "Wave 👋", proximityBody: "Un usuario de Wave está cerca — ¡abre la app!" },
+  it: { proximityTitle: "Wave 👋", proximityBody: "Un utente Wave è nelle vicinanze — apri l'app!" },
+  pt: { proximityTitle: "Wave 👋", proximityBody: "Um usuário Wave está por perto — abra o app!" },
+  tr: { proximityTitle: "Wave 👋", proximityBody: "Yakınında bir Wave kullanıcısı var — uygulamayı aç!" },
+  sq: { proximityTitle: "Wave 👋", proximityBody: "Një përdorues Wave është afër — hap aplikacionin!" },
+};
+
+function getPushString(locale: string | null, key: string): string {
+  const lang = locale?.substring(0, 2) ?? "en";
+  return PUSH_STRINGS[lang]?.[key] ?? PUSH_STRINGS.en[key];
+}
+
 /**
  * Update Location Edge Function
  *
@@ -172,10 +189,22 @@ serve(async (req: Request) => {
       );
     }
 
-    // Step 3: Build notification message
-    // Use a generic message — we know users are near the caller,
-    // but can't confirm the exact count near each recipient.
-    const notifBody = "A Wave user is nearby — open the app to connect!";
+    // Step 3: Fetch locales for nearby users to send localized push messages
+    const nearbyUserIds = nearbyUsers!.map((u: any) => u.user_id);
+    const localeMap: Record<string, string | null> = {};
+    if (nearbyUserIds.length > 0) {
+      try {
+        const { data: localeRows } = await adminClient
+          .from("profiles")
+          .select("id, locale")
+          .in("id", nearbyUserIds);
+        for (const row of localeRows ?? []) {
+          localeMap[row.id] = row.locale ?? null;
+        }
+      } catch {
+        // Non-fatal — fall back to English for all
+      }
+    }
 
     // Step 4: Send push notifications
     // Build messages with user_id attached for accurate cooldown tracking
@@ -183,8 +212,8 @@ serve(async (req: Request) => {
       (u: { user_id: string; push_token: string; platform: string }) => ({
         to: u.push_token,
         sound: "default",
-        title: "Wave \u{1F44B}",
-        body: notifBody,
+        title: getPushString(localeMap[u.user_id] ?? null, "proximityTitle"),
+        body: getPushString(localeMap[u.user_id] ?? null, "proximityBody"),
         data: { type: "proximity_alert" },
         priority: "high" as const,
         _userId: u.user_id, // internal tracking, stripped before sending

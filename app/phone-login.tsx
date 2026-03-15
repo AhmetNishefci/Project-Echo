@@ -6,16 +6,28 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { sendPhoneOtp, verifyPhoneOtp } from "@/services/auth";
 import { impactMedium, impactLight } from "@/utils/haptics";
 import { COLORS } from "@/constants/colors";
 import { COUNTRIES, getCountryByCode, type Country } from "@/constants/countries";
 import * as Localization from "expo-localization";
+import i18n from "@/i18n";
+
+function getLocalizedCountryName(code: string, fallback: string): string {
+  try {
+    const displayNames = new Intl.DisplayNames([i18n.language], { type: "region" });
+    return displayNames.of(code) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_SECONDS = 30;
 
 export default function PhoneLoginScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -74,7 +86,7 @@ export default function PhoneLoginScreen() {
       setResendTimer(RESEND_COOLDOWN_SECONDS);
       setTimeout(() => otpInputRef.current?.focus(), 300);
     } else if (error) {
-      Alert.alert("Couldn't Send Code", error);
+      Alert.alert(t("phoneLogin.couldntSendCode"), error);
     }
   };
 
@@ -92,7 +104,7 @@ export default function PhoneLoginScreen() {
     if (success) {
       router.replace("/");
     } else if (error) {
-      Alert.alert("Verification Failed", error);
+      Alert.alert(t("phoneLogin.verificationFailed"), error);
       setOtpCode("");
     }
   };
@@ -112,7 +124,7 @@ export default function PhoneLoginScreen() {
       setResendTimer(RESEND_COOLDOWN_SECONDS);
       setOtpCode("");
     } else if (error) {
-      Alert.alert("Couldn't Resend", error);
+      Alert.alert(t("phoneLogin.couldntResend"), error);
     }
   };
 
@@ -126,12 +138,18 @@ export default function PhoneLoginScreen() {
     }
   };
 
-  // Filter countries for search
+  // Filter countries for search (matches both English name and localized name)
   const filteredCountries = countrySearch
     ? COUNTRIES.filter(
-        (c) =>
-          c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-          c.dial.includes(countrySearch),
+        (c) => {
+          const query = countrySearch.toLowerCase();
+          const localizedName = getLocalizedCountryName(c.code, c.name);
+          return (
+            c.name.toLowerCase().includes(query) ||
+            localizedName.toLowerCase().includes(query) ||
+            c.dial.includes(countrySearch)
+          );
+        },
       )
     : COUNTRIES;
 
@@ -156,7 +174,7 @@ export default function PhoneLoginScreen() {
         <TouchableOpacity
           onPress={handleBack}
           className="w-10 h-10 rounded-full bg-wave-surface items-center justify-center mb-8"
-          accessibilityLabel="Go back"
+          accessibilityLabel={t("phoneLogin.goBack")}
           accessibilityRole="button"
         >
           <Ionicons name="arrow-back" size={20} color={COLORS.text} />
@@ -172,10 +190,10 @@ export default function PhoneLoginScreen() {
               </View>
 
               <Text className="text-2xl font-bold text-white mb-2 text-center">
-                Your phone number
+                {t("phoneLogin.yourPhoneNumber")}
               </Text>
               <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
-                We'll send you a verification code via SMS.
+                {t("phoneLogin.sendCodeDescription")}
               </Text>
 
               {/* Phone input row */}
@@ -185,7 +203,7 @@ export default function PhoneLoginScreen() {
                   onPress={() => setShowCountryPicker(true)}
                   className="bg-wave-surface rounded-2xl px-4 flex-row items-center justify-center"
                   style={{ height: 52 }}
-                  accessibilityLabel={`Country code ${country.dial}`}
+                  accessibilityLabel={t("phoneLogin.countryCode", { dial: country.dial })}
                   accessibilityRole="button"
                 >
                   <Text className="text-xl mr-1.5">{country.flag}</Text>
@@ -199,7 +217,7 @@ export default function PhoneLoginScreen() {
                     ref={phoneInputRef}
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
-                    placeholder="Phone number"
+                    placeholder={t("phoneLogin.phoneNumber")}
                     placeholderTextColor={COLORS.placeholder}
                     keyboardType="phone-pad"
                     autoFocus
@@ -219,14 +237,14 @@ export default function PhoneLoginScreen() {
                   canSend ? "bg-wave-primary" : "bg-wave-surface"
                 }`}
                 activeOpacity={0.8}
-                accessibilityLabel="Send verification code"
+                accessibilityLabel={t("phoneLogin.sendVerificationCode")}
                 accessibilityRole="button"
               >
                 {sending ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
                   <Text className={`text-base font-semibold ${canSend ? "text-white" : "text-wave-muted"}`}>
-                    Send Code
+                    {t("phoneLogin.sendCode")}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -239,10 +257,10 @@ export default function PhoneLoginScreen() {
               </View>
 
               <Text className="text-2xl font-bold text-white mb-2 text-center">
-                Enter verification code
+                {t("phoneLogin.enterCode")}
               </Text>
               <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
-                Sent to {country.flag} {country.dial} {phoneNumber}
+                {t("phoneLogin.sentTo", { flag: country.flag, dial: country.dial, number: phoneNumber })}
               </Text>
 
               {/* OTP input */}
@@ -273,7 +291,7 @@ export default function PhoneLoginScreen() {
                   otpCode.length === OTP_LENGTH ? "bg-wave-primary" : "bg-wave-surface"
                 }`}
                 activeOpacity={0.8}
-                accessibilityLabel="Verify code"
+                accessibilityLabel={t("phoneLogin.verifyCode")}
                 accessibilityRole="button"
               >
                 {verifying ? (
@@ -282,7 +300,7 @@ export default function PhoneLoginScreen() {
                   <Text className={`text-base font-semibold ${
                     otpCode.length === OTP_LENGTH ? "text-white" : "text-wave-muted"
                   }`}>
-                    Verify
+                    {t("phoneLogin.verify")}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -292,15 +310,15 @@ export default function PhoneLoginScreen() {
                 onPress={handleResend}
                 disabled={resendTimer > 0 || sending}
                 className="items-center py-2"
-                accessibilityLabel={resendTimer > 0 ? `Resend code in ${resendTimer} seconds` : "Resend code"}
+                accessibilityLabel={resendTimer > 0 ? t("phoneLogin.resendCodeAccessibility", { seconds: resendTimer }) : t("phoneLogin.resendCode")}
                 accessibilityRole="button"
               >
                 <Text className={`text-sm ${resendTimer > 0 ? "text-wave-muted" : "text-wave-primary font-semibold"}`}>
                   {resendTimer > 0
-                    ? `Resend code in ${resendTimer}s`
+                    ? t("phoneLogin.resendIn", { seconds: resendTimer })
                     : sending
-                      ? "Sending..."
-                      : "Resend code"}
+                      ? t("phoneLogin.sending")
+                      : t("phoneLogin.resendCode")}
                 </Text>
               </TouchableOpacity>
             </>
@@ -308,7 +326,7 @@ export default function PhoneLoginScreen() {
         </View>
 
         <Text className="text-wave-muted text-xs text-center leading-5">
-          Your identity stays hidden until a mutual match.
+          {t("common.identityHidden")}
         </Text>
       </View>
 
@@ -320,7 +338,7 @@ export default function PhoneLoginScreen() {
             <TouchableOpacity
               onPress={() => { setShowCountryPicker(false); setCountrySearch(""); }}
               className="mr-3"
-              accessibilityLabel="Close country picker"
+              accessibilityLabel={t("phoneLogin.closeCountryPicker")}
               accessibilityRole="button"
             >
               <Ionicons name="close" size={24} color={COLORS.text} />
@@ -330,7 +348,7 @@ export default function PhoneLoginScreen() {
               <TextInput
                 value={countrySearch}
                 onChangeText={setCountrySearch}
-                placeholder="Search country or code..."
+                placeholder={t("phoneLogin.searchCountry")}
                 placeholderTextColor={COLORS.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -353,13 +371,13 @@ export default function PhoneLoginScreen() {
                 activeOpacity={0.7}
               >
                 <Text className="text-xl mr-3">{item.flag}</Text>
-                <Text className="text-white text-sm flex-1">{item.name}</Text>
+                <Text className="text-white text-sm flex-1">{getLocalizedCountryName(item.code, item.name)}</Text>
                 <Text className="text-wave-muted text-sm">{item.dial}</Text>
               </TouchableOpacity>
             )}
             ListEmptyComponent={
               <View className="items-center mt-8">
-                <Text className="text-wave-muted text-sm">No countries found</Text>
+                <Text className="text-wave-muted text-sm">{t("phoneLogin.noCountries")}</Text>
               </View>
             }
           />

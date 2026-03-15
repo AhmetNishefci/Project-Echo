@@ -13,6 +13,63 @@ const adminClient = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
 );
 
+// ─── Localized push notification strings ─────────────────────────────
+const PUSH_STRINGS: Record<string, Record<string, string>> = {
+  en: {
+    matchTitle: "It's a Match! 🎉",
+    matchBody: "Someone waved back! Open Wave to see who.",
+    waveTitle: "Someone waved at you! 👋",
+    waveBody: "Open Wave to wave back",
+  },
+  de: {
+    matchTitle: "It's a Match! 🎉",
+    matchBody: "Jemand hat zurückgewaved! Öffne Wave um zu sehen wer.",
+    waveTitle: "Jemand hat dir zugewaved! 👋",
+    waveBody: "Öffne Wave und wave zurück",
+  },
+  fr: {
+    matchTitle: "C'est un Match ! 🎉",
+    matchBody: "Quelqu'un t'a wavé en retour ! Ouvre Wave pour voir qui.",
+    waveTitle: "Quelqu'un t'a wavé ! 👋",
+    waveBody: "Ouvre Wave pour waver en retour",
+  },
+  es: {
+    matchTitle: "¡Es un Match! 🎉",
+    matchBody: "¡Alguien te devolvió el wave! Abre Wave para ver quién.",
+    waveTitle: "¡Alguien te hizo wave! 👋",
+    waveBody: "Abre Wave para devolver el wave",
+  },
+  it: {
+    matchTitle: "È un Match! 🎉",
+    matchBody: "Qualcuno ha ricambiato il wave! Apri Wave per scoprire chi.",
+    waveTitle: "Qualcuno ti ha wavato! 👋",
+    waveBody: "Apri Wave per ricambiare",
+  },
+  pt: {
+    matchTitle: "É um Match! 🎉",
+    matchBody: "Alguém retribuiu seu wave! Abra o Wave pra ver quem.",
+    waveTitle: "Alguém te mandou um wave! 👋",
+    waveBody: "Abra o Wave pra retribuir",
+  },
+  tr: {
+    matchTitle: "Eşleşme! 🎉",
+    matchBody: "Biri sana wave yaptı! Kimin olduğunu görmek için Wave'i aç.",
+    waveTitle: "Biri sana wave yaptı! 👋",
+    waveBody: "Wave'i aç ve karşılık ver",
+  },
+  sq: {
+    matchTitle: "Është një Match! 🎉",
+    matchBody: "Dikush të ktheu wave! Hap Wave për të parë kush.",
+    waveTitle: "Dikush të bëri wave! 👋",
+    waveBody: "Hap Wave për t'ia kthyer",
+  },
+};
+
+function getPushString(locale: string | null, key: string): string {
+  const lang = locale?.substring(0, 2) ?? "en";
+  return PUSH_STRINGS[lang]?.[key] ?? PUSH_STRINGS.en[key];
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -235,10 +292,23 @@ serve(async (req: Request) => {
           console.error("Wave broadcast to target failed:", err);
         }
 
+        // Look up target user's locale for localized push
+        let targetLocale: string | null = null;
+        try {
+          const { data: targetProfile } = await adminClient
+            .from("profiles")
+            .select("locale")
+            .eq("id", targetUserId)
+            .single();
+          targetLocale = targetProfile?.locale ?? null;
+        } catch {
+          // Non-fatal — fall back to English
+        }
+
         // Send push notification to target user
         await sendExpoPush(adminClient, targetUserId, {
-          title: "Someone waved at you! 👋",
-          body: "Open Wave to wave back",
+          title: getPushString(targetLocale, "waveTitle"),
+          body: getPushString(targetLocale, "waveBody"),
           data: { type: "wave" },
         });
       }
@@ -249,10 +319,10 @@ serve(async (req: Request) => {
     let matchedSnapchatHandle: string | null = null;
 
     if (result.status === "match" && result.matched_user_id) {
-      // Look up contact handles for both users
+      // Look up contact handles and locales for both users
       const { data: profiles } = await adminClient
         .from("profiles")
-        .select("id, instagram_handle, snapchat_handle")
+        .select("id, instagram_handle, snapchat_handle, locale")
         .in("id", [user.id, result.matched_user_id]);
 
       const waverHandle =
@@ -290,9 +360,14 @@ serve(async (req: Request) => {
       // for the same reason it's excluded from broadcast payloads (line 271) —
       // push data is stored on-device and accessible to notification extensions.
       // Clients fetch handles via authenticated RPC after opening the match.
+      const matchedUserLocale =
+        profiles?.find((p: any) => p.id === result.matched_user_id)?.locale ?? null;
+      const waverLocale =
+        profiles?.find((p: any) => p.id === user.id)?.locale ?? null;
+
       await sendExpoPush(adminClient, result.matched_user_id, {
-        title: "It's a Match! 🎉",
-        body: "Someone waved back! Open Wave to see who.",
+        title: getPushString(matchedUserLocale, "matchTitle"),
+        body: getPushString(matchedUserLocale, "matchBody"),
         data: {
           type: "match",
           match_id: result.match_id,
@@ -303,8 +378,8 @@ serve(async (req: Request) => {
 
       // Also push the waver (in case they backgrounded the app)
       await sendExpoPush(adminClient, user.id, {
-        title: "It's a Match! 🎉",
-        body: "Someone waved back! Open Wave to see who.",
+        title: getPushString(waverLocale, "matchTitle"),
+        body: getPushString(waverLocale, "matchBody"),
         data: {
           type: "match",
           match_id: result.match_id,

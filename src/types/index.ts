@@ -1,3 +1,5 @@
+import i18n from "@/i18n";
+
 export type Gender = "male" | "female";
 export type GenderPreference = "male" | "female" | "both";
 
@@ -40,10 +42,10 @@ export function getDistanceZone(rssi: number): DistanceZone {
 
 /** Human-readable signal strength label (quality indicator, not distance) */
 export function getSignalLabel(rssi: number): string {
-  if (rssi >= -45) return "Strong";
-  if (rssi >= -60) return "Good";
-  if (rssi >= -75) return "Fair";
-  return "Weak";
+  if (rssi >= -45) return i18n.t("signal.strong");
+  if (rssi >= -60) return i18n.t("signal.good");
+  if (rssi >= -75) return i18n.t("signal.fair");
+  return i18n.t("signal.weak");
 }
 
 export interface WavePending {

@@ -5,6 +5,7 @@ import {
   statusCodes,
 } from "@react-native-google-signin/google-signin";
 import { supabase } from "./supabase";
+import i18n from "@/i18n";
 import { useAuthStore } from "@/stores/authStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useBleStore } from "@/stores/bleStore";
@@ -52,7 +53,7 @@ export async function signInWithGoogle(): Promise<{
     const idToken = response.data.idToken;
     if (!idToken) {
       logger.error("No ID token from Google Sign In");
-      return { success: false, error: "No ID token received" };
+      return { success: false, error: i18n.t("auth.noIdToken") };
     }
 
     logger.auth("Google ID token received, signing in with Supabase...");
@@ -75,11 +76,11 @@ export async function signInWithGoogle(): Promise<{
         return { success: false, error: "cancelled" };
       }
       if (err.code === statusCodes.IN_PROGRESS) {
-        return { success: false, error: "Sign in already in progress" };
+        return { success: false, error: i18n.t("auth.signInProgress") };
       }
     }
     logger.error("Google sign-in error", err);
-    return { success: false, error: "Something went wrong" };
+    return { success: false, error: i18n.t("common.somethingWentWrong") };
   }
 }
 
@@ -95,7 +96,7 @@ export async function signInWithApple(): Promise<{
     logger.auth("Starting Apple Sign In");
 
     if (!AppleAuthentication) {
-      return { success: false, error: "Apple Sign In is not available on this device" };
+      return { success: false, error: i18n.t("auth.appleNotAvailable") };
     }
 
     const credential = await AppleAuthentication.signInAsync({
@@ -108,7 +109,7 @@ export async function signInWithApple(): Promise<{
     const identityToken = credential.identityToken;
     if (!identityToken) {
       logger.error("No identity token from Apple Sign In");
-      return { success: false, error: "No identity token received" };
+      return { success: false, error: i18n.t("auth.noIdentityToken") };
     }
 
     logger.auth("Apple identity token received, signing in with Supabase...");
@@ -130,7 +131,7 @@ export async function signInWithApple(): Promise<{
       return { success: false, error: "cancelled" };
     }
     logger.error("Apple sign-in error", err);
-    return { success: false, error: "Something went wrong" };
+    return { success: false, error: i18n.t("common.somethingWentWrong") };
   }
 }
 
@@ -152,7 +153,7 @@ export async function sendPhoneOtp(phone: string): Promise<{
       logger.error("Phone OTP send failed", error);
 
       if (error.message?.includes("rate") || error.status === 429) {
-        return { success: false, error: "Too many attempts. Please wait a minute and try again." };
+        return { success: false, error: i18n.t("auth.rateLimited") };
       }
 
       return { success: false, error: error.message };
@@ -162,7 +163,7 @@ export async function sendPhoneOtp(phone: string): Promise<{
     return { success: true };
   } catch (err) {
     logger.error("Phone OTP exception", err);
-    return { success: false, error: "Something went wrong" };
+    return { success: false, error: i18n.t("common.somethingWentWrong") };
   }
 }
 
@@ -190,10 +191,10 @@ export async function verifyPhoneOtp(
       logger.error("Phone OTP verification failed", error);
 
       if (error.message?.includes("expired")) {
-        return { success: false, error: "Code expired. Please request a new one." };
+        return { success: false, error: i18n.t("auth.codeExpired") };
       }
       if (error.message?.includes("invalid") || error.message?.includes("Invalid")) {
-        return { success: false, error: "Invalid code. Please check and try again." };
+        return { success: false, error: i18n.t("auth.invalidCode") };
       }
 
       return { success: false, error: error.message };
@@ -203,7 +204,7 @@ export async function verifyPhoneOtp(
     return { success: true };
   } catch (err) {
     logger.error("Phone OTP verify exception", err);
-    return { success: false, error: "Something went wrong" };
+    return { success: false, error: i18n.t("common.somethingWentWrong") };
   }
 }
 

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, Alert, ScrollView } fr
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { saveGenderProfile } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
 import { impactMedium, impactLight } from "@/utils/haptics";
@@ -11,20 +12,21 @@ import { OnboardingProgress } from "@/components/OnboardingProgress";
 import { getAgeFromDob, getDefaultAgeRange } from "@/utils/age";
 import type { Gender, GenderPreference } from "@/types";
 
-const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
-  { value: "male", label: "Male", icon: "male" },
-  { value: "female", label: "Female", icon: "female" },
-];
-
-const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
-  { value: "male", label: "Men" },
-  { value: "female", label: "Women" },
-  { value: "both", label: "Everyone" },
-];
-
 export default function GenderScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const GENDER_OPTIONS: { value: Gender; label: string; icon: string }[] = [
+    { value: "male", label: t("gender.male"), icon: "male" },
+    { value: "female", label: t("gender.female"), icon: "female" },
+  ];
+
+  const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
+    { value: "male", label: t("gender.men") },
+    { value: "female", label: t("gender.women") },
+    { value: "both", label: t("gender.everyone") },
+  ];
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const existingGender = useAuthStore((s) => s.gender);
   const dateOfBirth = useAuthStore((s) => s.dateOfBirth);
@@ -71,7 +73,7 @@ export default function GenderScreen() {
     savingRef.current = false;
 
     if (!success) {
-      Alert.alert("Couldn't Save", "We had trouble saving your profile. Check your connection and try again.");
+      Alert.alert(t("common.couldntSave"), t("gender.saveError"));
       return;
     }
 
@@ -106,14 +108,14 @@ export default function GenderScreen() {
         <Ionicons name="person-outline" size={24} color="#6c63ff" />
       </View>
 
-      <Text className="text-2xl font-bold text-white mb-2">About You</Text>
+      <Text className="text-2xl font-bold text-white mb-2">{t("gender.title")}</Text>
       <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
-        This helps us show you the right people nearby.
+        {t("gender.description")}
       </Text>
 
       {/* Gender Selection */}
       <Text className="text-wave-muted text-xs uppercase tracking-wider self-start mb-3">
-        I am
+        {t("gender.iAm")}
       </Text>
       <View className="w-full flex-row mb-8" style={{ gap: 12 }}>
         {GENDER_OPTIONS.map((option) => {
@@ -151,7 +153,7 @@ export default function GenderScreen() {
 
       {/* Preference Selection */}
       <Text className="text-wave-muted text-xs uppercase tracking-wider self-start mb-3">
-        Show me
+        {t("gender.showMe")}
       </Text>
       <View className="w-full mb-8" style={{ gap: 10 }}>
         {PREFERENCE_OPTIONS.map((option) => {
@@ -187,7 +189,7 @@ export default function GenderScreen() {
 
       {/* Age Preference */}
       <Text className="text-wave-muted text-xs uppercase tracking-wider self-start mb-3">
-        Age range
+        {t("gender.ageRange")}
       </Text>
       <View className="w-full bg-wave-surface rounded-2xl p-4 mb-8">
         <AgeRangeSlider min={ageMin} max={ageMax} onChangeEnd={handleAgeChange} />
@@ -210,13 +212,13 @@ export default function GenderScreen() {
               canContinue ? "text-white" : "text-wave-muted"
             }`}
           >
-            Continue
+            {t("common.continue")}
           </Text>
         )}
       </TouchableOpacity>
 
       <Text className="text-wave-muted text-xs text-center mt-4 leading-5">
-        Your gender cannot be changed later.{"\n"}Discovery preferences can be updated in settings.
+        {t("gender.permanenceWarning")}
       </Text>
     </ScrollView>
   );

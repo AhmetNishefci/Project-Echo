@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Mod
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useBleStore } from "@/stores/bleStore";
 import { useWaveStore } from "@/stores/waveStore";
 import { useAuthStore } from "@/stores/authStore";
@@ -17,18 +18,19 @@ import { AgeRangeSlider } from "@/components/AgeRangeSlider";
 import { getAgeFromDob } from "@/utils/age";
 import type { GenderPreference } from "@/types";
 
-const PREFERENCE_OPTIONS: { value: GenderPreference; label: string }[] = [
-  { value: "male", label: "Men" },
-  { value: "female", label: "Women" },
-  { value: "both", label: "Everyone" },
+const PREFERENCE_OPTIONS: { value: GenderPreference; labelKey: string }[] = [
+  { value: "male", labelKey: "gender.men" },
+  { value: "female", labelKey: "gender.women" },
+  { value: "both", labelKey: "gender.everyone" },
 ];
 
 export default function SettingsScreen() {
+  const { t } = useTranslation();
   const { session, dateOfBirth, instagramHandle, setInstagramHandle, snapchatHandle, setSnapchatHandle, gender, genderPreference, setGenderPreference, agePreferenceMin, agePreferenceMax, setAgePreference, note, setNote, nearbyAlertsEnabled, setNearbyAlertsEnabled, dailyPushesEnabled, setDailyPushesEnabled } = useAuthStore();
   const totalMatches = useWaveStore((s) => s.matches.length);
   const rawEmail = session?.user?.email ?? null;
   const userEmail = rawEmail?.includes("privaterelay.appleid.com")
-    ? "Hidden (Apple)"
+    ? t("settings.hiddenApple")
     : rawEmail;
   const userPhone = session?.user?.phone ?? null;
   const router = useRouter();
@@ -76,11 +78,11 @@ export default function SettingsScreen() {
     if (result.handle) {
       setInstagramHandle(result.handle);
       setEditingHandle(false);
-      showToast("Username updated");
+      showToast(t("settings.usernameUpdated"));
     } else if (result.error === "taken") {
-      showToast("This username is already taken.", "error");
+      showToast(t("settings.usernameTaken"), "error");
     } else {
-      showToast("Invalid username. Use letters, numbers, dots, and underscores.", "error");
+      showToast(t("settings.instagramInvalid"), "error");
     }
   };
 
@@ -97,11 +99,11 @@ export default function SettingsScreen() {
     if (result.handle) {
       setSnapchatHandle(result.handle);
       setEditingSnapchat(false);
-      showToast("Snapchat updated");
+      showToast(t("settings.snapchatUpdated"));
     } else if (result.error === "taken") {
-      showToast("This Snapchat username is already taken.", "error");
+      showToast(t("settings.snapchatTaken"), "error");
     } else {
-      showToast("Invalid Snapchat username. 3-15 characters, starts with a letter.", "error");
+      showToast(t("settings.snapchatInvalid"), "error");
     }
   };
 
@@ -116,10 +118,10 @@ export default function SettingsScreen() {
 
     if (success) {
       setGenderPreference(pref);
-      const label = PREFERENCE_OPTIONS.find((o) => o.value === pref)?.label ?? pref;
-      showToast(`Now showing ${label.toLowerCase()}`);
+      const label = PREFERENCE_OPTIONS.find((o) => o.value === pref);
+      showToast(t("settings.nowShowing", { label: label ? t(label.labelKey).toLowerCase() : pref }));
     } else {
-      showToast("Could not update preference. Try again.", "error");
+      showToast(t("settings.preferenceError"), "error");
     }
   };
 
@@ -132,9 +134,9 @@ export default function SettingsScreen() {
       const success = await updateAgePreference(min, max);
       setSavingAgePref(false);
       if (success) {
-        showToast(`Age range: ${min}–${max}`);
+        showToast(t("settings.ageRangeUpdated", { min, max }));
       } else {
-        showToast("Could not update age range. Try again.", "error");
+        showToast(t("settings.ageRangeError"), "error");
       }
     }, 500);
   }, [setAgePreference, showToast]);
@@ -151,11 +153,11 @@ export default function SettingsScreen() {
         if (blocked) {
           setSavingAlerts(false);
           Alert.alert(
-            "Location Access Needed",
-            "Location permission was denied. To enable nearby alerts, open Settings and allow location for Wave.",
+            t("settings.locationNeeded"),
+            t("settings.locationDenied"),
             [
-              { text: "Cancel", style: "cancel" },
-              { text: "Open Settings", onPress: () => Linking.openSettings() },
+              { text: t("common.cancel"), style: "cancel" },
+              { text: t("common.openSettings"), onPress: () => Linking.openSettings() },
             ],
           );
           return;
@@ -164,7 +166,7 @@ export default function SettingsScreen() {
         const permResult = await requestLocationPermission();
         if (permResult !== "granted") {
           setSavingAlerts(false);
-          showToast("Location permission is required for nearby alerts.", "error");
+          showToast(t("settings.locationRequired"), "error");
           return;
         }
       }
@@ -175,9 +177,9 @@ export default function SettingsScreen() {
 
     if (success) {
       setNearbyAlertsEnabled(enabled);
-      showToast(enabled ? "Nearby alerts enabled" : "Nearby alerts disabled");
+      showToast(enabled ? t("settings.alertsEnabled") : t("settings.alertsDisabled"));
     } else {
-      showToast("Could not update alerts. Try again.", "error");
+      showToast(t("settings.alertsError"), "error");
     }
   };
 
@@ -190,9 +192,9 @@ export default function SettingsScreen() {
 
     if (success) {
       setDailyPushesEnabled(enabled);
-      showToast(enabled ? "Daily reminders enabled" : "Daily reminders disabled");
+      showToast(enabled ? t("settings.remindersEnabled") : t("settings.remindersDisabled"));
     } else {
-      showToast("Could not update preference. Try again.", "error");
+      showToast(t("settings.preferenceError"), "error");
     }
   };
 
@@ -207,20 +209,20 @@ export default function SettingsScreen() {
     if (success) {
       setNote(trimmed || null);
       setEditingNote(false);
-      showToast(trimmed ? "Note updated" : "Note cleared");
+      showToast(trimmed ? t("settings.noteUpdated") : t("settings.noteCleared"));
     } else {
-      showToast("Could not update note. Try again.", "error");
+      showToast(t("settings.noteError"), "error");
     }
   };
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      "Delete Account",
-      "This will permanently delete your account, all matches, and your data. This cannot be undone.",
+      t("settings.deleteAccount"),
+      t("settings.deleteConfirm"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             setDeleting(true);
@@ -229,13 +231,13 @@ export default function SettingsScreen() {
               const { data: { user }, error: userError } = await supabase.auth.getUser();
               if (userError || !user) {
                 setDeleting(false);
-                showToast("Not signed in. Please restart the app.", "error");
+                showToast(t("settings.notSignedIn"), "error");
                 return;
               }
               const { data: { session } } = await supabase.auth.getSession();
               if (!session) {
                 setDeleting(false);
-                showToast("Session expired. Please sign in again.", "error");
+                showToast(t("settings.sessionExpired"), "error");
                 return;
               }
 
@@ -245,7 +247,7 @@ export default function SettingsScreen() {
 
               if (error) {
                 setDeleting(false);
-                showToast("Failed to delete account. Try again.", "error");
+                showToast(t("settings.deleteError"), "error");
                 return;
               }
 
@@ -258,7 +260,7 @@ export default function SettingsScreen() {
               router.replace("/");
             } catch {
               setDeleting(false);
-              showToast("Something went wrong. Try again.", "error");
+              showToast(t("settings.genericError"), "error");
             }
           },
         },
@@ -272,48 +274,48 @@ export default function SettingsScreen() {
       <Modal visible={deleting} transparent animationType="fade">
         <View className="flex-1 bg-black/80 items-center justify-center">
           <ActivityIndicator size="large" color="#6c63ff" />
-          <Text className="text-white text-base mt-4">Deleting account...</Text>
+          <Text className="text-white text-base mt-4">{t("settings.deletingAccount")}</Text>
         </View>
       </Modal>
 
     <ScrollView className="flex-1 bg-wave-bg pt-16 px-4">
       {/* Header */}
       <View className="mb-6">
-        <Text className="text-3xl font-bold text-white">Settings</Text>
+        <Text className="text-3xl font-bold text-white">{t("settings.title")}</Text>
       </View>
 
       {/* Account */}
-      <Section title="Account">
+      <Section title={t("settings.account")}>
         {userEmail && (
-          <InfoRow label="Email" value={userEmail} />
+          <InfoRow label={t("settings.email")} value={userEmail} />
         )}
         {userPhone && (
-          <InfoRow label="Phone" value={userPhone} />
+          <InfoRow label={t("settings.phone")} value={userPhone} />
         )}
         {gender && (
-          <InfoRow label="Gender" value={gender === "male" ? "Male" : "Female"} />
+          <InfoRow label={t("settings.gender")} value={gender === "male" ? t("gender.male") : t("gender.female")} />
         )}
         {dateOfBirth && (
           <>
-            <InfoRow label="Birthday" value={formatDob(dateOfBirth)} />
-            <InfoRow label="Age" value={`${getAgeFromDob(dateOfBirth)}`} />
+            <InfoRow label={t("settings.birthday")} value={formatDob(dateOfBirth)} />
+            <InfoRow label={t("settings.age")} value={`${getAgeFromDob(dateOfBirth)}`} />
           </>
         )}
         {(gender || dateOfBirth) && (
           <Text className="text-wave-muted text-xs mt-2 leading-4">
-            Gender and date of birth are set during signup and cannot be changed.
+            {t("settings.genderLocked")}
           </Text>
         )}
       </Section>
 
       {/* Stats */}
-      <Section title="Stats">
-        <InfoRow label="Total Matches" value={String(totalMatches)} />
+      <Section title={t("settings.stats")}>
+        <InfoRow label={t("settings.totalMatches")} value={String(totalMatches)} />
       </Section>
 
       {/* Discovery Preference */}
-      <Section title="Discovery">
-        <Text className="text-wave-muted text-xs mb-3">Show me</Text>
+      <Section title={t("settings.discovery")}>
+        <Text className="text-wave-muted text-xs mb-3">{t("settings.showMe")}</Text>
         <View style={{ gap: 8 }}>
           {PREFERENCE_OPTIONS.map((option) => {
             const selected = genderPreference === option.value;
@@ -334,7 +336,7 @@ export default function SettingsScreen() {
                     selected ? "text-white" : "text-wave-muted"
                   }`}
                 >
-                  {option.label}
+                  {t(option.labelKey)}
                 </Text>
                 {selected && (
                   <Ionicons name="checkmark-circle" size={20} color="#6c63ff" />
@@ -349,7 +351,7 @@ export default function SettingsScreen() {
 
         {/* Age Range */}
         <View className="mt-4 pt-4 border-t border-wave-bg">
-          <Text className="text-wave-muted text-xs mb-3">Age range</Text>
+          <Text className="text-wave-muted text-xs mb-3">{t("settings.ageRange")}</Text>
           <AgeRangeSlider
             min={agePreferenceMin ?? 18}
             max={agePreferenceMax ?? 80}
@@ -361,17 +363,17 @@ export default function SettingsScreen() {
         </View>
 
         <Text className="text-wave-muted text-xs mt-3 leading-4">
-          Only people matching your preferences will appear on your radar.
+          {t("settings.discoveryHint")}
         </Text>
       </Section>
 
       {/* Nearby Alerts */}
-      <Section title="Nearby Alerts">
+      <Section title={t("settings.nearbyAlerts")}>
         <View className="flex-row items-center justify-between">
           <View className="flex-1 mr-4">
-            <Text className="text-white text-sm font-semibold">Nearby Alerts</Text>
+            <Text className="text-white text-sm font-semibold">{t("settings.nearbyAlerts")}</Text>
             <Text className="text-wave-muted text-xs mt-1 leading-4">
-              Get notified when Wave users are near you
+              {t("settings.nearbyAlertsSubtitle")}
             </Text>
           </View>
           <Switch
@@ -386,17 +388,17 @@ export default function SettingsScreen() {
           <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
         )}
         <Text className="text-wave-muted text-xs mt-3 leading-4">
-          Uses your location when you open Wave. Your location is never shared with other users.
+          {t("settings.nearbyAlertsHint")}
         </Text>
       </Section>
 
       {/* Daily Reminders */}
-      <Section title="Daily Reminders">
+      <Section title={t("settings.dailyReminders")}>
         <View className="flex-row items-center justify-between">
           <View className="flex-1 mr-4">
-            <Text className="text-white text-sm font-semibold">Evening Reminders</Text>
+            <Text className="text-white text-sm font-semibold">{t("settings.eveningReminders")}</Text>
             <Text className="text-wave-muted text-xs mt-1 leading-4">
-              Get a daily nudge during peak hours (6–8 PM)
+              {t("settings.eveningRemindersSubtitle")}
             </Text>
           </View>
           <Switch
@@ -411,25 +413,25 @@ export default function SettingsScreen() {
           <ActivityIndicator size="small" color="#6c63ff" style={{ marginTop: 8 }} />
         )}
         <Text className="text-wave-muted text-xs mt-3 leading-4">
-          One notification per day when Wave users are most active near you.
+          {t("settings.eveningRemindersHint")}
         </Text>
       </Section>
 
       {/* Socials */}
-      <Section title="Socials">
+      <Section title={t("settings.socials")}>
         {/* Instagram */}
         {editingHandle ? (
           <View className="mb-3">
             <View className="flex-row items-center mb-2">
               <Ionicons name="logo-instagram" size={14} color="#6c63ff" />
-              <Text className="text-wave-muted text-xs ml-1.5">Instagram</Text>
+              <Text className="text-wave-muted text-xs ml-1.5">{t("onboarding.instagram")}</Text>
             </View>
             <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
               <Text className="text-wave-muted text-sm" style={{ lineHeight: 18 }}>@</Text>
               <TextInput
                 value={handleInput}
                 onChangeText={setHandleInput}
-                placeholder="username"
+                placeholder={t("common.username")}
                 placeholderTextColor="#555"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -450,7 +452,7 @@ export default function SettingsScreen() {
                 }}
                 className="rounded-lg px-4 py-2 mr-2"
               >
-                <Text className="text-wave-muted text-sm">Cancel</Text>
+                <Text className="text-wave-muted text-sm">{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveHandle}
@@ -460,7 +462,7 @@ export default function SettingsScreen() {
                 {savingHandle ? (
                   <ActivityIndicator color="white" size="small" />
                 ) : (
-                  <Text className="text-white text-sm font-semibold">Save</Text>
+                  <Text className="text-white text-sm font-semibold">{t("common.save")}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -470,11 +472,11 @@ export default function SettingsScreen() {
             <View className="flex-row justify-between items-center py-1.5">
               <View className="flex-row items-center">
                 <Ionicons name="logo-instagram" size={16} color="#6c63ff" style={{ marginRight: 8 }} />
-                <Text className="text-wave-muted text-sm">Instagram</Text>
+                <Text className="text-wave-muted text-sm">{t("onboarding.instagram")}</Text>
               </View>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm font-mono mr-2">
-                  {instagramHandle ? `@${instagramHandle}` : "Not set"}
+                  {instagramHandle ? `@${instagramHandle}` : t("common.notSet")}
                 </Text>
                 <Ionicons name="pencil" size={14} color="#6c63ff" />
               </View>
@@ -490,13 +492,13 @@ export default function SettingsScreen() {
           <View>
             <View className="flex-row items-center mb-2">
               <Ionicons name="logo-snapchat" size={14} color="#FFFC00" />
-              <Text className="text-wave-muted text-xs ml-1.5">Snapchat</Text>
+              <Text className="text-wave-muted text-xs ml-1.5">{t("onboarding.snapchat")}</Text>
             </View>
             <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
               <TextInput
                 value={snapchatInput}
                 onChangeText={setSnapchatInput}
-                placeholder="username"
+                placeholder={t("common.username")}
                 placeholderTextColor="#555"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -517,7 +519,7 @@ export default function SettingsScreen() {
                 }}
                 className="rounded-lg px-4 py-2 mr-2"
               >
-                <Text className="text-wave-muted text-sm">Cancel</Text>
+                <Text className="text-wave-muted text-sm">{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleSaveSnapchat}
@@ -527,7 +529,7 @@ export default function SettingsScreen() {
                 {savingSnapchat ? (
                   <ActivityIndicator color="white" size="small" />
                 ) : (
-                  <Text className="text-white text-sm font-semibold">Save</Text>
+                  <Text className="text-white text-sm font-semibold">{t("common.save")}</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -537,11 +539,11 @@ export default function SettingsScreen() {
             <View className="flex-row justify-between items-center py-1.5">
               <View className="flex-row items-center">
                 <Ionicons name="logo-snapchat" size={16} color="#FFFC00" style={{ marginRight: 8 }} />
-                <Text className="text-wave-muted text-sm">Snapchat</Text>
+                <Text className="text-wave-muted text-sm">{t("onboarding.snapchat")}</Text>
               </View>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm font-mono mr-2">
-                  {snapchatHandle || "Not set"}
+                  {snapchatHandle || t("common.notSet")}
                 </Text>
                 <Ionicons name="pencil" size={14} color="#6c63ff" />
               </View>
@@ -550,19 +552,19 @@ export default function SettingsScreen() {
         )}
 
         <Text className="text-wave-muted text-xs mt-3 leading-4">
-          Your socials are shown to your match after a mutual wave.
+          {t("settings.socialsHint")}
         </Text>
       </Section>
 
       {/* Note */}
-      <Section title="Note">
+      <Section title={t("settings.noteSection")}>
         {editingNote ? (
           <View>
             <View className="bg-wave-bg rounded-xl flex-row items-center px-3" style={{ height: 44 }}>
               <TextInput
                 value={noteInput}
                 onChangeText={setNoteInput}
-                placeholder="e.g. Alex, red hoodie"
+                placeholder={t("settings.notePlaceholder")}
                 placeholderTextColor="#555"
                 autoCapitalize="sentences"
                 autoCorrect={false}
@@ -589,7 +591,7 @@ export default function SettingsScreen() {
                   }}
                   className="rounded-lg px-4 py-2 mr-2"
                 >
-                  <Text className="text-wave-muted text-sm">Cancel</Text>
+                  <Text className="text-wave-muted text-sm">{t("common.cancel")}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSaveNote}
@@ -599,7 +601,7 @@ export default function SettingsScreen() {
                   {savingNote ? (
                     <ActivityIndicator color="white" size="small" />
                   ) : (
-                    <Text className="text-white text-sm font-semibold">Save</Text>
+                    <Text className="text-white text-sm font-semibold">{t("common.save")}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -608,10 +610,10 @@ export default function SettingsScreen() {
         ) : (
           <TouchableOpacity onPress={() => setEditingNote(true)} activeOpacity={0.7}>
             <View className="flex-row justify-between items-center py-1.5">
-              <Text className="text-wave-muted text-sm">Note</Text>
+              <Text className="text-wave-muted text-sm">{t("settings.noteSection")}</Text>
               <View className="flex-row items-center">
                 <Text className="text-white text-sm mr-2" numberOfLines={1} style={{ maxWidth: 180 }}>
-                  {note || "Not set"}
+                  {note || t("common.notSet")}
                 </Text>
                 <Ionicons name="pencil" size={14} color="#6c63ff" />
               </View>
@@ -619,21 +621,21 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         )}
         <Text className="text-wave-muted text-xs mt-2 leading-4">
-          Visible to everyone nearby. Changes appear within about 30 seconds.
+          {t("settings.noteHint")}
         </Text>
       </Section>
 
       {/* Safety */}
-      <Section title="Safety">
+      <Section title={t("settings.safety")}>
         <TouchableOpacity
           onPress={() => {
             Alert.alert(
-              "Report a User",
-              "To report someone, long-press their match in your match history and choose \"Report User\". You can also email us directly.",
+              t("settings.reportUser"),
+              t("settings.reportDescription"),
               [
-                { text: "OK" },
+                { text: t("common.ok") },
                 {
-                  text: "Email Support",
+                  text: t("settings.emailSupport"),
                   onPress: () => Linking.openURL("mailto:support@wave-app.com?subject=Report%20User"),
                 },
               ],
@@ -641,57 +643,57 @@ export default function SettingsScreen() {
           }}
           className="py-3"
         >
-          <Text className="text-white text-sm">Report a User</Text>
+          <Text className="text-white text-sm">{t("settings.reportUser")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => {
             Alert.alert(
-              "Block a User",
-              "To remove someone, long-press their match in your match history and choose \"Remove Match\". This removes them from your history. Full blocking will be available in a future update.",
-              [{ text: "OK" }],
+              t("settings.blockUser"),
+              t("settings.blockDescription"),
+              [{ text: t("common.ok") }],
             );
           }}
           className="py-3"
         >
-          <Text className="text-white text-sm">Block a User</Text>
+          <Text className="text-white text-sm">{t("settings.blockUser")}</Text>
         </TouchableOpacity>
       </Section>
 
       {/* Legal */}
-      <Section title="Legal">
+      <Section title={t("settings.legal")}>
         <TouchableOpacity
           onPress={() => Linking.openURL("https://wave-app.com/privacy")}
           className="py-3 flex-row justify-between items-center"
         >
-          <Text className="text-white text-sm">Privacy Policy</Text>
+          <Text className="text-white text-sm">{t("settings.privacyPolicy")}</Text>
           <Text className="text-wave-muted text-xs">&rsaquo;</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => Linking.openURL("https://wave-app.com/terms")}
           className="py-3 flex-row justify-between items-center"
         >
-          <Text className="text-white text-sm">Terms of Service</Text>
+          <Text className="text-white text-sm">{t("settings.termsOfService")}</Text>
           <Text className="text-wave-muted text-xs">&rsaquo;</Text>
         </TouchableOpacity>
       </Section>
 
       {/* Danger zone */}
-      <Section title="Account Actions">
+      <Section title={t("settings.accountActions")}>
         <TouchableOpacity
           onPress={() => {
             Alert.alert(
-              "Sign Out",
-              "You'll need to sign in again to use Wave.",
+              t("common.signOut"),
+              t("settings.signOutConfirm"),
               [
-                { text: "Cancel", style: "cancel" },
+                { text: t("common.cancel"), style: "cancel" },
                 {
-                  text: "Sign Out",
+                  text: t("common.signOut"),
                   onPress: async () => {
                     try {
                       await signOut();
                       router.replace("/");
                     } catch {
-                      showToast("Sign out failed. Try again.", "error");
+                      showToast(t("settings.signOutError"), "error");
                     }
                   },
                 },
@@ -700,16 +702,16 @@ export default function SettingsScreen() {
           }}
           className="py-3"
         >
-          <Text className="text-white text-sm">Sign Out</Text>
+          <Text className="text-white text-sm">{t("common.signOut")}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={handleDeleteAccount}
           className="py-3"
         >
-          <Text className="text-wave-danger text-sm">Delete Account</Text>
+          <Text className="text-wave-danger text-sm">{t("settings.deleteAccount")}</Text>
         </TouchableOpacity>
         <Text className="text-wave-muted text-xs mt-1">
-          Permanently removes your account, matches, and all data.
+          {t("settings.deleteHint")}
         </Text>
       </Section>
 

@@ -1,4 +1,5 @@
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useTranslation } from "react-i18next";
 
 interface PermissionGateProps {
   onRequestPermissions: () => void;
@@ -9,6 +10,8 @@ export function PermissionGate({
   onRequestPermissions,
   isLoading,
 }: PermissionGateProps) {
+  const { t } = useTranslation();
+
   return (
     <View className="flex-1 bg-wave-bg items-center justify-center px-8">
       {/* Icon */}
@@ -17,17 +20,16 @@ export function PermissionGate({
       </View>
 
       <Text className="text-3xl font-bold text-white text-center mb-3">
-        Discover Nearby
+        {t("permissions.title")}
       </Text>
       <Text className="text-wave-muted text-center text-base mb-8 leading-6">
-        Wave uses Bluetooth to find people around you. Your identity stays
-        anonymous until you both wave at each other.
+        {t("permissions.description")}
       </Text>
 
       <View className="bg-wave-surface rounded-2xl p-4 mb-8 w-full">
-        <BulletPoint text="Bluetooth scans for nearby Wave users" />
-        <BulletPoint text="No GPS tracking - only proximity" />
-        <BulletPoint text="Your identity is hidden until mutual match" />
+        <BulletPoint text={t("permissions.bullet1")} />
+        <BulletPoint text={t("permissions.bullet2")} />
+        <BulletPoint text={t("permissions.bullet3")} />
       </View>
 
       <TouchableOpacity
@@ -39,7 +41,7 @@ export function PermissionGate({
           <ActivityIndicator color="white" />
         ) : (
           <Text className="text-white text-lg font-semibold">
-            Enable Bluetooth
+            {t("permissions.enableBluetooth")}
           </Text>
         )}
       </TouchableOpacity>

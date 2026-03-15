@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, Alert, Platform } from
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { saveDateOfBirth } from "@/services/profile";
 import { useAuthStore } from "@/stores/authStore";
@@ -11,6 +12,7 @@ import { isAtLeastAge } from "@/utils/age";
 import { OnboardingProgress } from "@/components/OnboardingProgress";
 
 export default function BirthdayScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -70,7 +72,7 @@ export default function BirthdayScreen() {
     savingRef.current = false;
 
     if (!success) {
-      Alert.alert("Couldn't Save", "We had trouble saving your birthday. Check your connection and try again.");
+      Alert.alert(t("common.couldntSave"), t("birthday.saveError"));
       return;
     }
 
@@ -90,9 +92,9 @@ export default function BirthdayScreen() {
         <Ionicons name="calendar-outline" size={24} color="#6c63ff" />
       </View>
 
-      <Text className="text-2xl font-bold text-white mb-2">Your Birthday</Text>
+      <Text className="text-2xl font-bold text-white mb-2">{t("birthday.title")}</Text>
       <Text className="text-wave-muted text-sm text-center mb-8 leading-5">
-        You must be at least 18 to use Wave.{"\n"}This cannot be changed later.
+        {t("birthday.description")}
       </Text>
 
       {/* Date Picker */}
@@ -113,7 +115,7 @@ export default function BirthdayScreen() {
       {tooYoung && (
         <View className="w-full bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 mb-4">
           <Text className="text-red-400 text-sm text-center">
-            You must be at least 18 years old to use Wave.
+            {t("birthday.ageWarning")}
           </Text>
         </View>
       )}
@@ -135,7 +137,7 @@ export default function BirthdayScreen() {
               hasSelected && !tooYoung ? "text-white" : "text-wave-muted"
             }`}
           >
-            Continue
+            {t("common.continue")}
           </Text>
         )}
       </TouchableOpacity>
